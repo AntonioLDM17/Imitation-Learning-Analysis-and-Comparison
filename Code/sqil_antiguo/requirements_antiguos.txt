@@ -1,0 +1,28 @@
+# PyTorch with CUDA 11.8
+torch==2.0.1+cu118
+torchvision==0.15.2+cu118
+torchaudio==2.0.2+cu118
+--extra-index-url https://download.pytorch.org/whl/cu118
+
+# Core libraries
+gym==0.24.1    # La versión 0.24.1 es la última compatible con d4rl==1.1
+numpy==1.24.4
+matplotlib==3.7.1
+tqdm==4.65.0
+
+# Imitation Learning
+imitation==1.0.1
+
+# Video rendering
+imageio==2.37.0
+
+# RL Algorithms
+stable-baselines3[extra]==2.2.1
+
+# Datasets and environments
+d4rl==1.1
+
+# Entorno basado en PyBullet (evitamos mujoco-py)
+pybullet==3.2.7
+
+# Ya no usamos mujoco ni mujoco-py ni Cython para compilaciones

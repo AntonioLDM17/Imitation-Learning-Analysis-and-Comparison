@@ -1,16 +1,15 @@
 import numpy as np
 import gymnasium as gym
 from stable_baselines3 import SAC
-from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from stable_baselines3.common.buffers import ReplayBuffer
 from stable_baselines3.common.callbacks import EvalCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.logger import configure
 import os
 
-# ---------- Custom Replay Buffer for SQIL ----------
+# ---------- Custom Replay Buffer for SQIL with λ_samp and fixed demos ----------
 class SQILReplayBuffer(ReplayBuffer):
-    def __init__(self, *args, demo_transitions=None, lambda_samp=0.9, **kwargs):
+    def __init__(self, *args, demo_transitions=None, lambda_samp=0.5, **kwargs):
         super().__init__(*args, **kwargs)
         self.demo_size = 0
         self.lambda_samp = lambda_samp
@@ -37,7 +36,7 @@ class SQILReplayBuffer(ReplayBuffer):
 
 # ---------- Modified SAC for SQIL ----------
 class SQILSAC(SAC):
-    def __init__(self, *args, demo_transitions=None, lambda_samp=0.9, **kwargs):
+    def __init__(self, *args, demo_transitions=None, lambda_samp=0.5, **kwargs):
         super().__init__(*args, **kwargs)
         self.replay_buffer = SQILReplayBuffer(
             self.buffer_size,
@@ -53,43 +52,39 @@ class SQILSAC(SAC):
 
 # ---------- Paths and Parameters ----------
 ENV_NAME = "HalfCheetah-v5"
-DEMO_PATH = "demonstrations_halfcheetah_v5_100000.npy"
+DEMO_PATH = "Code/sqil_sac/demonstrations/demonstrations_halfcheetah_v5_100000.npy"  # Path to the expert demonstrations
 TOTAL_STEPS = 500_000
-LAMBDA_SAMP = 0.9
-EVAL_FREQ = 10_000
-LOG_DIR = "logs/sqil_v3"
-MODEL_PATH = "sqil_v3_halfcheetah"
+LAMBDA_SAMP = 0.8 # Use 80% demo transitions in early training
+MODEL_NAME = f"sqil_halfcheetah_v3_{TOTAL_STEPS}_{LAMBDA_SAMP}"
+MODEL_PATH = f"Code/sqil_sac/models/{MODEL_NAME}"
+LOG_DIR = f"Code/sqil_sac/logs/{MODEL_NAME}"
 
-# ---------- Load demonstrations ----------
+# ---------- Load expert demonstrations ----------
 demo_data = np.load(DEMO_PATH, allow_pickle=True)
 
-# ---------- Environment setup with normalization and monitoring ----------
-venv = DummyVecEnv([lambda: Monitor(gym.make(ENV_NAME))])
-venv = VecNormalize(venv, norm_obs=True, norm_reward=False)
+# ---------- Setup monitored environment ----------
+monitored_env = Monitor(gym.make(ENV_NAME))
+
+# ---------- Setup logger for TensorBoard ----------
+new_logger = configure(LOG_DIR, ["stdout", "tensorboard"])
 
 # ---------- Evaluation environment ----------
-eval_env = DummyVecEnv([lambda: Monitor(gym.make(ENV_NAME))])
-eval_env = VecNormalize(eval_env, norm_obs=True, norm_reward=False, training=False)
-
-# ---------- Configure logger for TensorBoard ----------
-new_logger = configure(LOG_DIR, ['stdout', 'tensorboard'])
-
-# ---------- Callback for periodic evaluation ----------
+eval_env = Monitor(gym.make(ENV_NAME))
 eval_callback = EvalCallback(
     eval_env,
     best_model_save_path=os.path.join(LOG_DIR, "best_model"),
     log_path=LOG_DIR,
-    eval_freq=EVAL_FREQ,
+    eval_freq=10_000,
     deterministic=True,
     render=False
 )
 
 # ---------- Train the model ----------
-model = SQILSAC("MlpPolicy", venv, verbose=1, demo_transitions=demo_data, lambda_samp=LAMBDA_SAMP, tensorboard_log=LOG_DIR)
+model = SQILSAC("MlpPolicy", monitored_env, verbose=1, demo_transitions=demo_data, lambda_samp=LAMBDA_SAMP, tensorboard_log=LOG_DIR)
 model.set_logger(new_logger)
 model.learn(total_timesteps=TOTAL_STEPS, callback=eval_callback)
 model.save(MODEL_PATH)
-print(f"SQIL v3 model saved as '{MODEL_PATH}.zip'")
+print(f"Trained SQIL v2 model saved as '{MODEL_PATH}.zip'")
 
-venv.close()
+monitored_env.close()
 eval_env.close()

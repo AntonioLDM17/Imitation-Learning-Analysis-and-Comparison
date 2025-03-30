@@ -1,0 +1,29 @@
+--extra-index-url https://download.pytorch.org/whl/cu118
+
+absl-py==2.1.0
+cloudpickle==3.0.0
+colorlog==6.9.0
+cycler==0.12.1
+gym==0.26.2
+gymnasium==0.29.1
+imageio==2.34.1
+matplotlib==3.9.0
+mujoco==3.3.0
+numpy==1.26.4
+pandas==2.2.2
+protobuf==5.29.3
+pyglet==1.5.27
+pyopengl==3.1.9
+scikit-image==0.24.0
+scipy==1.13.1
+stable-baselines3==2.6.0
+sb3-contrib==2.6.0
+tensorboard==2.19.0
+torch==2.6.0+cu118
+tqdm==4.67.1
+opencv-python==4.10.0.84
+shimmy
+
+# Imitation learning tools
+imitation
+seals==0.2.1

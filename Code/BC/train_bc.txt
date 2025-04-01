@@ -4,7 +4,6 @@ import types
 import argparse
 import time
 import numpy as np
-import torch
 from tqdm import tqdm
 from stable_baselines3.common.logger import configure
 from imitation.algorithms import bc
@@ -35,11 +34,12 @@ def main():
     ENV_NAME = "CartPole-v1" if args.env == "cartpole" else "HalfCheetah-v4"
     SEED = args.seed
 
-    # Load demonstrations from the centralized folder
+    # Load demonstrations from the centralized folder (relative to the parent directory)
     DEMO_DIR = os.path.join("..", "data", "demonstrations")
     DEMO_FILENAME = f"{args.env}_demonstrations.npy"
+    # Models for BC are saved in the local "models" folder
     MODEL_DIR = "models"
-    MODEL_NAME = f"bc_{args.env}.pt"  # Usamos extensión .pt para guardar el state_dict
+    MODEL_NAME = f"bc_{args.env}.zip"
     os.makedirs(MODEL_DIR, exist_ok=True)
 
     # Set up TensorBoard logging
@@ -66,6 +66,8 @@ def main():
     )
 
     print("Starting Behavioral Cloning training...")
+    start_time = time.time()
+
     for epoch in tqdm(range(1, args.epochs + 1), desc="Training epochs"):
         epoch_start = time.time()
         bc_trainer.train(n_epochs=1)
@@ -79,9 +81,9 @@ def main():
 
         tqdm.write(f"Epoch {epoch}/{args.epochs}: Reward = {reward:.2f}, Epoch Time = {epoch_duration:.2f}s")
 
-    # Guardar el modelo: guardamos solo el state_dict
+    # Save the trained BC model in the local models folder
     model_path = os.path.join(MODEL_DIR, MODEL_NAME)
-    torch.save(bc_trainer.policy.state_dict(), model_path)
+    bc_trainer.policy.save(model_path)
     print(f"Behavioral Cloning model saved at {model_path}")
 
     final_reward, _ = evaluate_policy(bc_trainer.policy, env, 10)

@@ -1,19 +1,17 @@
 import os, sys, types, argparse
-
-# Create dummy modules for "mujoco_py" (to avoid compiling its extensions)
-dummy = types.ModuleType("mujoco_py")
-dummy.builder = types.ModuleType("mujoco_py.builder")
-dummy.locomotion = types.ModuleType("mujoco_py.locomotion")
-# You can add minimal attributes if needed; for now, we leave them empty.
-sys.modules["mujoco_py"] = dummy
-sys.modules["mujoco_py.builder"] = dummy.builder
-sys.modules["mujoco_py.locomotion"] = dummy.locomotion
-
 import numpy as np
 import gymnasium as gym
 from sb3_contrib import TRPO  # Using TRPO as in the original GAIL paper
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.logger import configure
+
+# Create dummy modules for "mujoco_py" (to avoid compiling its extensions)
+dummy = types.ModuleType("mujoco_py")
+dummy.builder = types.ModuleType("mujoco_py.builder")
+dummy.locomotion = types.ModuleType("mujoco_py.locomotion")
+sys.modules["mujoco_py"] = dummy
+sys.modules["mujoco_py.builder"] = dummy.builder
+sys.modules["mujoco_py.locomotion"] = dummy.locomotion
 
 from imitation.algorithms.adversarial.gail import GAIL
 from imitation.data import rollout  # For generating rollouts if needed
@@ -31,11 +29,13 @@ def main():
     parser.add_argument("--timesteps", type=int, default=200000,
                         help="Total timesteps to train GAIL")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--policy", type=str, choices=["ppo", "trpo", "sac"], default="ppo",
+                        help="Expert policy algorithm to use")
     args = parser.parse_args()
 
     SEED = args.seed
 
-    # Determine environment name based on the --env argument
+    # Determine environment name
     if args.env == "cartpole":
         ENV_NAME = "CartPole-v1"
     elif args.env == "halfcheetah":
@@ -45,13 +45,35 @@ def main():
 
     TOTAL_TIMESTEPS = args.timesteps
 
-    # Directories and filenames setup
-    DEMO_DIR = "demonstrations"
+    # Update paths based on new structure:
+    # In Code/GAIL, demonstrations are in "../data/demonstrations"
+    DEMO_DIR = os.path.join("..", "data", "demonstrations")
     DEMO_FILENAME = f"{args.env}_demonstrations.npy"
+    # Expert models are now in "../data/experts"
+    if args.env == "cartpole":
+        if args.policy.lower() == "trpo":
+            EXPERT_MODEL_PATH = os.path.join("..", "data", "experts", "cartpole_expert_trpo.zip")
+        elif args.policy.lower() == "ppo":
+            EXPERT_MODEL_PATH = os.path.join("..", "data", "experts", "cartpole_expert_ppo.zip")
+        else:
+            raise ValueError("For CartPole, please use 'ppo' or 'trpo' (SAC is not compatible with discrete actions).")
+    elif args.env == "halfcheetah":
+        if args.policy.lower() == "sac":
+            EXPERT_MODEL_PATH = os.path.join("..", "data", "experts", "halfcheetah_expert_sac.zip")
+        elif args.policy.lower() == "trpo":
+            EXPERT_MODEL_PATH = os.path.join("..", "data", "experts", "halfcheetah_expert_trpo.zip")
+        elif args.policy.lower() == "ppo":
+            EXPERT_MODEL_PATH = os.path.join("..", "data", "experts", "halfcheetah_expert_ppo.zip")
+        else:
+            raise ValueError("Unsupported policy for halfcheetah.")
+    else:
+        raise ValueError("The --env parameter must be 'cartpole' or 'halfcheetah'.")
+
+    # Models for GAIL will be saved in the local "models" folder inside the GAIL folder.
     MODELS_DIR = "models"
     MODEL_NAME = f"gail_{args.env}"
-    LOG_DIR = f"logs/gail_{args.env}"
-
+    # Logs are saved to "logs/gail_{env}" inside the GAIL folder.
+    LOG_DIR = os.path.join("logs", f"gail_{args.env}")
     os.makedirs(MODELS_DIR, exist_ok=True)
     os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -63,7 +85,7 @@ def main():
         post_wrappers=[lambda env, _: RolloutInfoWrapper(env)]
     )
 
-    # Load expert demonstrations and convert to list if needed
+    # Load expert demonstrations from DEMO_DIR (the data folder)
     demo_path = os.path.join(DEMO_DIR, DEMO_FILENAME)
     demonstrations = np.load(demo_path, allow_pickle=True)
     if isinstance(demonstrations, np.ndarray):
@@ -118,5 +140,5 @@ def main():
 
 if __name__ == "__main__":
     print("Usage example:")
-    print("python .\train_gail.py --env halfcheetah --timesteps 1000000 --seed 42")
+    print("python train_gail.py --env halfcheetah --timesteps 1000000 --seed 42")
     main()

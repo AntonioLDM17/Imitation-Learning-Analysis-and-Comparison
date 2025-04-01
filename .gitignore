@@ -1,2 +1,8 @@
 /.venv_gail
 /Code/GAIL/logs
+/.venv
+/Code/sqil_sac/logs
+/Code/BC/logs
+/Code/GAIL/logs
+Code/logs
+/Code/DAC/logs

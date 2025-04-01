@@ -20,7 +20,7 @@ sys.modules["mujoco_py"] = dummy
 sys.modules["mujoco_py.builder"] = dummy.builder
 sys.modules["mujoco_py.locomotion"] = dummy.locomotion
 
-# Import everything from dac.py (with BCEWithLogitsLoss for the discriminator)
+# Import DAC components (assumed to be defined in dac.py in the same folder)
 from dac import (
     DAC,
     DAC_Discriminator,
@@ -30,9 +30,7 @@ from dac import (
     ContinuousCritic
 )
 
-# For logging metrics into TensorBoard logs readable by TensorFlow
 from torch.utils.tensorboard import SummaryWriter
-
 
 def flatten_demonstrations(demos):
     """
@@ -51,7 +49,6 @@ def flatten_demonstrations(demos):
             transitions.append((obs_i, act_i, rew_i, next_obs, done_flag))
     return transitions
 
-
 def main():
     parser = argparse.ArgumentParser(description="Train a DAC model (Discriminator-Actor-Critic).")
     parser.add_argument("--env", type=str, choices=["cartpole", "halfcheetah"], default="cartpole",
@@ -61,7 +58,7 @@ def main():
     parser.add_argument("--seed", type=int, default=42, help="Random seed.")
     args = parser.parse_args()
 
-    # Map the env argument
+    # Map environment name
     if args.env == "cartpole":
         ENV_NAME = "CartPole-v1"
     elif args.env == "halfcheetah":
@@ -72,69 +69,66 @@ def main():
     TOTAL_TIMESTEPS = args.timesteps
     SEED = args.seed
 
-    # Prepare directories
-    DEMO_DIR = "demonstrations"
+    # Set up directories (with new structure)
+    # Demonstrations are in ../data/demonstrations (data folder is sibling of Code)
+    DEMO_DIR = os.path.join("..", "data", "demonstrations")
     DEMO_FILENAME = f"{args.env}_demonstrations.npy"
+    # Models for DAC are saved in the local "models" folder in the DAC directory
     MODELS_DIR = "models"
     MODEL_NAME = f"dac_{args.env}"
-    LOG_DIR = f"logs/dac_{args.env}"
+    # Logs for DAC in logs/dac_{env} (inside Code/DAC)
+    LOG_DIR = os.path.join("logs", f"dac_{args.env}")
     os.makedirs(MODELS_DIR, exist_ok=True)
     os.makedirs(LOG_DIR, exist_ok=True)
 
-    # Make the environment (vectorized with 1 env)
+    # Create the environment (vectorized with one env for simplicity)
     env = make_vec_env(
         ENV_NAME,
         rng=np.random.default_rng(SEED),
-        n_envs=1,
+        n_envs=1,  # Using single env here simplifies debugging
         post_wrappers=[lambda e, _: RolloutInfoWrapper(e)]
     )
 
-    # Load expert demonstrations
+    # Load expert demonstrations from the centralized data folder
     demo_path = os.path.join(DEMO_DIR, DEMO_FILENAME)
     demonstrations = np.load(demo_path, allow_pickle=True)
     if isinstance(demonstrations, np.ndarray):
         demonstrations = demonstrations.tolist()
 
-    # Flatten if needed
+    # If necessary, flatten the demonstrations
     try:
-        _ = iter(demonstrations[0])  # if this fails, we flatten
+        _ = iter(demonstrations[0])
     except TypeError:
         demonstrations = flatten_demonstrations(demonstrations)
 
-    # Check if discrete or continuous
+    # Determine if environment is discrete or continuous
     if isinstance(env.action_space, gym.spaces.Discrete):
         is_discrete = True
         n_actions = env.action_space.n
-        act_dim = n_actions
     else:
         is_discrete = False
-        act_dim = env.action_space.shape[0]
 
     obs_dim = env.observation_space.shape[0]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # Initialize actor, critic
+    # Initialize actor and critic based on environment type
     if is_discrete:
         actor = DiscreteActor(obs_dim, n_actions).to(device)
         critic = DiscreteCritic(obs_dim, n_actions).to(device)
-        disc_act_dim = n_actions
     else:
+        act_dim = env.action_space.shape[0]
         actor = ContinuousActor(obs_dim, act_dim).to(device)
         critic = ContinuousCritic(obs_dim, act_dim).to(device)
-        disc_act_dim = act_dim
 
-    # Updated DAC_Discriminator with raw logits & BCEWithLogitsLoss
-    discriminator = DAC_Discriminator(obs_dim=obs_dim, act_dim=disc_act_dim).to(device)
+    # Initialize discriminator (DAC_Discriminator)
+    discriminator = DAC_Discriminator(obs_dim=obs_dim, act_dim=(n_actions if is_discrete else act_dim)).to(device)
 
-    # Lower LR, weight decay for disc, plus some tune for actor/critic
+    # Set up optimizers
     actor_optimizer = optim.Adam(actor.parameters(), lr=1e-4)
     critic_optimizer = optim.Adam(critic.parameters(), lr=1e-4)
     disc_optimizer = optim.Adam(discriminator.parameters(), lr=1e-3, weight_decay=1e-4)
 
-
-    # Create the DAC trainer
-    # We'll do label smoothing in update_discriminator by editing dac.py,
-    # but if you want to do it here, see notes below.
+    # Create DAC trainer
     dac_trainer = DAC(
         actor=actor,
         critic=critic,
@@ -147,49 +141,40 @@ def main():
         n_actions=n_actions if is_discrete else None
     )
 
-    print("Starting DAC training...")
-
-    # Initialize TensorBoard writer
+    # Set up TensorBoard writer
+    from torch.utils.tensorboard import SummaryWriter
     writer = SummaryWriter(log_dir=LOG_DIR)
 
-    # Reset env; extract single obs
+    print("Starting DAC training...")
     raw_obs = env.reset()[0]
     if isinstance(raw_obs, np.ndarray) and raw_obs.ndim == 2:
         obs = raw_obs[0]
     else:
         obs = raw_obs
-
     if obs.shape[0] != obs_dim:
         raise ValueError(f"Observation shape mismatch: expected {obs_dim}, got {obs.shape[0]}")
-
-    # We'll track reward sums for episodes completed between logs
+    
     episodes_since_log = 0
     reward_sum_since_log = 0.0
     episode_reward = 0.0
     timestep = 0
-
-    # Logging/printing interval (in timesteps)
     PRINT_INTERVAL = 1000
 
+    # Main training loop
     while timestep < TOTAL_TIMESTEPS:
-        # Turn obs into a batch of size 1
+        # Turn obs into batch of size 1
         obs_tensor = torch.tensor(obs, dtype=torch.float32, device=device).unsqueeze(0)
         with torch.no_grad():
             if is_discrete:
-                # Sample an integer action from the logits
                 logits = actor(obs_tensor)
-                dist = Categorical(logits=logits)
+                dist = torch.distributions.Categorical(logits=logits)
                 action = int(dist.sample().item())
             else:
-                # Continuous actor outputs a vector
                 action = actor(obs_tensor).cpu().numpy()[0]
-
-        # Step env with a single action
         if is_discrete:
-            action_batch = np.array([action])  # shape (1,)
+            action_batch = np.array([action])
         else:
-            action_batch = np.array([action])  # shape (1, act_dim)
-
+            action_batch = np.array([action])
         result = env.step(action_batch)
         if len(result) == 5:
             next_obs, reward_batch, terminated, truncated, _ = result
@@ -200,18 +185,12 @@ def main():
                 done = done[0]
         else:
             raise ValueError("Unexpected return format from env.step()")
-
         next_obs = next_obs[0]
         reward = reward_batch[0]
-
-        # Store transition
         dac_trainer.replay_buffer.append((obs, action, reward, next_obs, float(done)))
-
         obs = next_obs
         episode_reward += reward
         timestep += 1
-
-        # Handle episode end
         if done:
             episodes_since_log += 1
             reward_sum_since_log += episode_reward
@@ -222,12 +201,10 @@ def main():
                 obs = raw_obs
             episode_reward = 0.0
 
-        # Once enough samples are in the replay buffer, do updates
         if len(dac_trainer.replay_buffer) >= 64:
             indices = np.random.choice(len(dac_trainer.replay_buffer), 64, replace=False)
             batch = [dac_trainer.replay_buffer[i] for i in indices]
             obs_b, act_b, reward_b, next_obs_b, done_b = zip(*batch)
-
             obs_b = torch.tensor(np.array(obs_b), dtype=torch.float32)
             if is_discrete:
                 act_b = torch.tensor(np.array(act_b), dtype=torch.long).squeeze(-1)
@@ -236,64 +213,38 @@ def main():
             reward_b = torch.tensor(np.array(reward_b), dtype=torch.float32).unsqueeze(1)
             next_obs_b = torch.tensor(np.array(next_obs_b), dtype=torch.float32)
             done_b = torch.tensor(np.array(done_b), dtype=torch.float32).unsqueeze(1)
-
-            actor_loss, critic_loss = dac_trainer.update_actor_critic(
-                (obs_b, act_b, reward_b, next_obs_b, done_b)
-            )
-
-            # Update Discriminator fewer times (2 instead of 5)
+            actor_loss, critic_loss = dac_trainer.update_actor_critic((obs_b, act_b, reward_b, next_obs_b, done_b))
             disc_loss = 0.0
             for _ in range(2):
                 expert_indices = np.random.choice(len(demonstrations), 64, replace=True)
                 expert_batch = [demonstrations[i] for i in expert_indices]
                 expert_obs, expert_act, _, _, _ = zip(*expert_batch)
-
                 expert_obs = torch.tensor(np.array(expert_obs), dtype=torch.float32)
                 if is_discrete:
-                    # Convert to integer, then do one-hot before passing to disc
                     expert_act = torch.tensor(np.array(expert_act), dtype=torch.long).squeeze(-1)
                     expert_act = F.one_hot(expert_act, num_classes=n_actions).float()
                 else:
                     expert_act = torch.tensor(np.array(expert_act), dtype=torch.float32)
-
                 policy_indices = np.random.choice(len(dac_trainer.replay_buffer), 64, replace=True)
                 policy_batch = [dac_trainer.replay_buffer[i] for i in policy_indices]
                 policy_obs, policy_act, _, _, _ = zip(*policy_batch)
-
                 policy_obs = torch.tensor(np.array(policy_obs), dtype=torch.float32)
                 if is_discrete:
                     policy_act = torch.tensor(np.array(policy_act), dtype=torch.long).squeeze(-1)
                     policy_act = F.one_hot(policy_act, num_classes=n_actions).float()
                 else:
                     policy_act = torch.tensor(np.array(policy_act), dtype=torch.float32)
-
-                # This call does label smoothing inside DAC (see below)
-                disc_loss += dac_trainer.update_discriminator(
-                    (expert_obs, expert_act),
-                    (policy_obs, policy_act)
-                )
+                disc_loss += dac_trainer.update_discriminator((expert_obs, expert_act), (policy_obs, policy_act))
             disc_loss /= 2.0
 
-            # Log metrics every PRINT_INTERVAL timesteps
             if timestep % PRINT_INTERVAL == 0:
-                if episodes_since_log > 0:
-                    avg_reward = reward_sum_since_log / episodes_since_log
-                else:
-                    avg_reward = float("nan")
-
+                avg_reward = reward_sum_since_log / episodes_since_log if episodes_since_log > 0 else float("nan")
                 writer.add_scalar("Metrics/MeanEpisodeReward", avg_reward, timestep)
                 writer.add_scalar("Losses/ActorLoss", actor_loss, timestep)
                 writer.add_scalar("Losses/CriticLoss", critic_loss, timestep)
                 writer.add_scalar("Losses/DiscLoss", disc_loss, timestep)
-
-                print(
-                    f"Timesteps: {timestep}, "
-                    f"Mean episode reward: {avg_reward:.2f}, "
-                    f"Actor loss: {actor_loss:.3f}, "
-                    f"Critic loss: {critic_loss:.3f}, "
-                    f"Disc loss: {disc_loss:.3f}"
-                )
-
+                print(f"Timesteps: {timestep}, Mean Episode Reward: {avg_reward:.2f}, "
+                      f"Actor Loss: {actor_loss:.3f}, Critic Loss: {critic_loss:.3f}, Disc Loss: {disc_loss:.3f}")
                 episodes_since_log = 0
                 reward_sum_since_log = 0.0
 
@@ -304,7 +255,6 @@ def main():
 
     env.close()
     writer.close()
-
 
 if __name__ == "__main__":
     print("Usage example:")

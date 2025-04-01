@@ -49,5 +49,5 @@ def main():
 
 if __name__ == "__main__":
     print("Example execution:")
-    print("python ./evaluate_gail.py --env HalfCheetah-v4 --model_path models/gail_halfcheetah.zip --n_episodes 100")
+    print("python evaluate_gail.py --env HalfCheetah-v4 --model_path models/gail_halfcheetah.zip --n_episodes 100")
     main()

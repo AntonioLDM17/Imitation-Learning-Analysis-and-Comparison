@@ -79,8 +79,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Inspect environment and demonstration shapes.")
     parser.add_argument("--env", type=str, default="HalfCheetah-v4",
                         help="Environment name to inspect (e.g., HalfCheetah-v4 or CartPole-v1)")
-    parser.add_argument("--demo_path", type=str, default="demonstrations/halfcheetah_demonstrations.npy",
-                        help="Path to the demonstration file (e.g., demonstrations/halfcheetah_demonstrations.npy)")
+    parser.add_argument("--demo_path", type=str, default="../data/demonstrations/halfcheetah_demonstrations.npy",
+                        help="Path to the demonstration file (e.g., ../data/demonstrations/halfcheetah_demonstrations.npy)")
     args = parser.parse_args()
     
     print("=== Inspecting Environment ===")

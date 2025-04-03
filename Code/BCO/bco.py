@@ -1,3 +1,14 @@
+""" 
+Credits to:
+@inproceedings{torabi2018bco,
+  author = {Faraz Torabi and Garrett Warnell and Peter Stone}, 
+  title = {{Behavioral Cloning from Observation}}, 
+  booktitle = {International Joint Conference on Artificial Intelligence (IJCAI)}, 
+  year = {2018} 
+}
+Where the code is based on the original BCO implementation by Faraz Torabi.
+"""
+
 import os
 import argparse
 import numpy as np
@@ -13,7 +24,7 @@ def set_seed(seed):
     torch.manual_seed(seed)
 
 # Inverse Dynamics Model: receives s and s_next and predicts the action.
-# For discrete environments, it outputs logits; for continuous, it outputs direct predictions.
+# For discrete environments, outputs logits; for continuous, direct prediction.
 class InverseDynamicsModel(nn.Module):
     def __init__(self, obs_dim, action_dim, discrete=True):
         super(InverseDynamicsModel, self).__init__()
@@ -54,7 +65,6 @@ class PolicyNetwork(nn.Module):
 def collect_exploration_data(env, num_interactions):
     s_list, s_next_list, a_list = [], [], []
     obs, _ = env.reset()
-    done = False
     total_steps = 0
 
     while total_steps < num_interactions:
@@ -70,7 +80,7 @@ def collect_exploration_data(env, num_interactions):
             obs, _ = env.reset()
     return np.array(s_list), np.array(s_next_list), np.array(a_list)
 
-# Create DataLoader from exploration data
+# Function to create a DataLoader from data
 def create_dataloader(s, s_next, a, batch_size=64):
     dataset = TensorDataset(torch.tensor(s, dtype=torch.float32),
                             torch.tensor(s_next, dtype=torch.float32),
@@ -101,7 +111,7 @@ def train_inverse_model(model, dataloader, discrete=True, epochs=10, lr=1e-3, wr
             writer.add_scalar("InverseModel/Loss", avg_loss, epoch+1)
     return model
 
-# Infer expert actions from demonstrations (state trajectory)
+# Infer expert actions from a demonstration (state trajectory)
 def infer_expert_actions(model, demo_states, discrete=True):
     # Form consecutive pairs (s, s_next)
     s_demo = demo_states[:-1]
@@ -144,3 +154,28 @@ def train_policy(policy_net, states, actions, discrete=True, epochs=20, lr=1e-3,
         if writer is not None:
             writer.add_scalar("Policy/Loss", avg_loss, epoch+1)
     return policy_net
+
+# Function to collect data using the current policy (for post-demonstration interactions)
+def collect_policy_data(policy_net, env, num_interactions, discrete):
+    s_list, s_next_list, a_list = [], [], []
+    obs, _ = env.reset()
+    total_steps = 0
+    while total_steps < num_interactions:
+        state = np.array(obs)
+        s_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
+        with torch.no_grad():
+            output = policy_net(s_tensor)
+            if discrete:
+                action = torch.argmax(output, dim=1).item()
+            else:
+                action = output.squeeze().cpu().numpy()
+        next_obs, reward, done, truncated, _ = env.step(action)
+        s_list.append(state)
+        s_next_list.append(np.array(next_obs))
+        a_list.append(action)
+        total_steps += 1
+        if done or truncated:
+            obs, _ = env.reset()
+        else:
+            obs = next_obs
+    return np.array(s_list), np.array(s_next_list), np.array(a_list)

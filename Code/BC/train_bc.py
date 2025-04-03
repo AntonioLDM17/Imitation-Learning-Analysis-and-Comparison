@@ -79,7 +79,7 @@ def main():
 
         tqdm.write(f"Epoch {epoch}/{args.epochs}: Reward = {reward:.2f}, Epoch Time = {epoch_duration:.2f}s")
 
-    # Guardar el modelo: guardamos solo el state_dict
+    # Save the model: we only save the state_dict
     model_path = os.path.join(MODEL_DIR, MODEL_NAME)
     torch.save(bc_trainer.policy.state_dict(), model_path)
     print(f"Behavioral Cloning model saved at {model_path}")

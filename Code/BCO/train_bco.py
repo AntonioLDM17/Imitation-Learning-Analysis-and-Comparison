@@ -15,7 +15,17 @@ import numpy as np
 import gymnasium as gym
 import torch
 from torch.utils.tensorboard import SummaryWriter
-from bco import set_seed, InverseDynamicsModel, PolicyNetwork, collect_exploration_data, create_dataloader, train_inverse_model, infer_expert_actions, train_policy, collect_policy_data
+from bco import (
+    set_seed,
+    InverseDynamicsModel,
+    PolicyNetwork,
+    collect_exploration_data,
+    create_dataloader,
+    train_inverse_model,
+    infer_expert_actions,
+    train_policy,
+    collect_policy_data
+)
 
 # Create dummy modules for "mujoco_py" (to avoid compiling its extensions)
 dummy = types.ModuleType("mujoco_py")
@@ -26,7 +36,7 @@ sys.modules["mujoco_py.builder"] = dummy.builder
 sys.modules["mujoco_py.locomotion"] = dummy.locomotion
 
 def main():
-    parser = argparse.ArgumentParser(description="Train a BCO model (or BCO(alpha)) depending on alpha value.")
+    parser = argparse.ArgumentParser(description="Train a BCO model (or BCO(alpha)) based on the alpha value.")
     parser.add_argument("--env", type=str, choices=["cartpole", "halfcheetah"], default="cartpole",
                         help="Environment: 'cartpole' (discrete) or 'halfcheetah' (continuous)")
     parser.add_argument("--pre_interactions", type=int, default=2000,
@@ -38,6 +48,16 @@ def main():
     parser.add_argument("--demo_file", type=str, default=None,
                         help="Path to demonstrations (npy) in data/demonstrations")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    # Hyperparameters for inverse model training
+    parser.add_argument("--inv_epochs", type=int, default=10, help="Epochs for pre-demonstration inverse model training")
+    parser.add_argument("--inv_lr", type=float, default=1e-3, help="Learning rate for inverse model training")
+    # Hyperparameters for policy training (initial)
+    parser.add_argument("--policy_epochs", type=int, default=20, help="Epochs for initial policy training")
+    parser.add_argument("--policy_lr", type=float, default=1e-3, help="Learning rate for initial policy training")
+    # Hyperparameters for iterative retraining (if alpha > 0)
+    parser.add_argument("--iter_inv_epochs", type=int, default=5, help="Epochs for inverse model retraining in each iteration")
+    parser.add_argument("--iter_policy_epochs", type=int, default=10, help="Epochs for policy retraining in each iteration")
+    parser.add_argument("--batch_size", type=int, default=64, help="Batch size for training both models")
     args = parser.parse_args()
 
     set_seed(args.seed)
@@ -66,10 +86,11 @@ def main():
     s_pre, s_next_pre, a_pre = collect_exploration_data(env, args.pre_interactions)
     print(f"Collected {s_pre.shape[0]} pre-demonstration transitions.")
 
-    loader = create_dataloader(s_pre, s_next_pre, a_pre, batch_size=64)
+    loader = create_dataloader(s_pre, s_next_pre, a_pre, batch_size=args.batch_size)
     inv_model = InverseDynamicsModel(obs_dim, action_dim, discrete=discrete)
     print("Training inverse dynamics model on pre-demonstration data...")
-    inv_model = train_inverse_model(inv_model, loader, discrete=discrete, epochs=10, lr=1e-3, writer=writer)
+    inv_model = train_inverse_model(inv_model, loader, discrete=discrete,
+                                    epochs=args.inv_epochs, lr=args.inv_lr, writer=writer)
 
     # Load demonstration data
     if args.demo_file is None:
@@ -110,7 +131,6 @@ def main():
 
     print(f"Demonstration has {demo_traj.shape[0]} states.")
 
-    # Decide which branch to run based on alpha value
     if args.alpha == 0.0:
         # BCO(0): Non-iterative (normal) BCO
         print("Running BCO(0) (non-iterative behavioral cloning from observation).")
@@ -121,7 +141,8 @@ def main():
         policy_net = PolicyNetwork(obs_dim, action_dim, discrete=discrete)
         print("Training policy (Behavioral Cloning) with inferred actions...")
         policy_net = train_policy(policy_net, states_bc, inferred_actions,
-                                  discrete=discrete, epochs=20, lr=1e-3, batch_size=64, writer=writer)
+                                  discrete=discrete, epochs=args.policy_epochs, lr=args.policy_lr,
+                                  batch_size=args.batch_size, writer=writer)
     else:
         # BCO(alpha): Iterative improvement
         print("Running BCO(alpha) iterative improvement.")
@@ -133,31 +154,34 @@ def main():
         policy_net = PolicyNetwork(obs_dim, action_dim, discrete=discrete)
         print("Initial training of policy (Behavioral Cloning) with inferred actions...")
         policy_net = train_policy(policy_net, states_bc, inferred_actions,
-                                  discrete=discrete, epochs=20, lr=1e-3, batch_size=64, writer=writer)
+                                  discrete=discrete, epochs=args.policy_epochs, lr=args.policy_lr,
+                                  batch_size=args.batch_size, writer=writer)
 
         # Calculate number of post-demonstration interactions per iteration
         post_interactions = int(args.alpha * args.pre_interactions)
         print(f"Starting iterative improvement: {args.num_iterations} iterations, each with {post_interactions} post-demonstration interactions.")
         for itr in range(args.num_iterations):
             print(f"--- Iteration {itr+1}/{args.num_iterations} ---")
-            # Collect post-demonstration data using the current policy
+            # Collect post-demonstration data using current policy
             s_post, s_next_post, a_post = collect_policy_data(policy_net, env, post_interactions, discrete)
             print(f"Collected {s_post.shape[0]} post-demonstration transitions.")
-            # Combine pre-demonstration data and post-demonstration data
+            # Combine pre-demonstration and post-demonstration data
             s_combined = np.concatenate([s_pre, s_post], axis=0)
             s_next_combined = np.concatenate([s_next_pre, s_next_post], axis=0)
             a_combined = np.concatenate([a_pre, a_post], axis=0)
-            combined_loader = create_dataloader(s_combined, s_next_combined, a_combined, batch_size=64)
+            combined_loader = create_dataloader(s_combined, s_next_combined, a_combined, batch_size=args.batch_size)
             # Update inverse model with combined data
             print("Re-training inverse dynamics model on combined data...")
-            inv_model = train_inverse_model(inv_model, combined_loader, discrete=discrete, epochs=5, lr=1e-3, writer=writer)
-            # Re-infer expert actions using updated inverse model
+            inv_model = train_inverse_model(inv_model, combined_loader, discrete=discrete,
+                                            epochs=args.iter_inv_epochs, lr=args.inv_lr, writer=writer)
+            # Re-infer expert actions using the updated inverse model
             print("Re-inferring expert actions using updated inverse dynamics model...")
             states_bc, inferred_actions = infer_expert_actions(inv_model, demo_traj, discrete=discrete)
             # Re-train policy with updated inferred actions
             print("Re-training policy (Behavioral Cloning) with updated inferred actions...")
             policy_net = train_policy(policy_net, states_bc, inferred_actions,
-                                      discrete=discrete, epochs=10, lr=1e-3, batch_size=64, writer=writer)
+                                      discrete=discrete, epochs=args.iter_policy_epochs, lr=args.policy_lr,
+                                      batch_size=args.batch_size, writer=writer)
 
     models_dir = os.path.join("models")
     os.makedirs(models_dir, exist_ok=True)

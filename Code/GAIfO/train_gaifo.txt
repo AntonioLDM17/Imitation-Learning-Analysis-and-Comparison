@@ -20,9 +20,6 @@ sys.modules["mujoco_py"] = dummy
 sys.modules["mujoco_py.builder"] = dummy.builder
 sys.modules["mujoco_py.locomotion"] = dummy.locomotion
 
-# Set device for computation (GPU if available)
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 # Dummy callback to be used with collect_rollouts
 class DummyCallback(BaseCallback):
     def __init__(self, verbose=0):
@@ -50,33 +47,6 @@ class GAIfODiscriminator(nn.Module):
         # Assume s and s_next are of shape (batch_size, flat_obs_dim)
         x = torch.cat([s, s_next], dim=1)
         return self.net(x)
-
-# Function to compute the gradient penalty for the discriminator
-def compute_gradient_penalty(discriminator, s_expert, s_policy, s_expert_next, s_policy_next, device):
-    batch_size = s_expert.size(0)
-    alpha = torch.rand(batch_size, 1, device=device)
-    # Interpolate between expert and policy samples
-    s_hat = alpha * s_expert + (1 - alpha) * s_policy
-    s_hat_next = alpha * s_expert_next + (1 - alpha) * s_policy_next
-
-    s_hat.requires_grad_(True)
-    s_hat_next.requires_grad_(True)
-    
-    d_hat = discriminator(s_hat, s_hat_next)
-    ones = torch.ones(d_hat.size(), device=device)
-    gradients = torch.autograd.grad(
-        outputs=d_hat,
-        inputs=[s_hat, s_hat_next],
-        grad_outputs=ones,
-        create_graph=True,
-        retain_graph=True,
-        only_inputs=True
-    )
-    grad_s, grad_s_next = gradients
-    grad = torch.cat([grad_s, grad_s_next], dim=1)
-    grad_norm = grad.norm(2, dim=1)
-    penalty = ((grad_norm - 1) ** 2).mean()
-    return penalty
 
 def main():
     parser = argparse.ArgumentParser(description="Train GAIfO using TRPO (state-only imitation).")
@@ -129,8 +99,8 @@ def main():
         expert_transitions.append((demo_traj[i], demo_traj[i + 1]))
     expert_transitions = np.array(expert_transitions)
 
-    expert_s = torch.tensor(np.stack([t[0] for t in expert_transitions]), dtype=torch.float32).to(device)
-    expert_s_next = torch.tensor(np.stack([t[1] for t in expert_transitions]), dtype=torch.float32).to(device)
+    expert_s = torch.tensor(np.stack([t[0] for t in expert_transitions]), dtype=torch.float32)
+    expert_s_next = torch.tensor(np.stack([t[1] for t in expert_transitions]), dtype=torch.float32)
 
     # Get flat observation dimension (assuming a single environment)
     flat_obs_dim = env.observation_space.shape[0]
@@ -146,10 +116,9 @@ def main():
     learner.ep_info_buffer = []
     learner.ep_success_buffer = []
 
-    # Initialize the discriminator with flat_obs_dim and move it to device
-    discriminator = GAIfODiscriminator(flat_obs_dim, hidden_dim=64).to(device)
-    # Increase the discriminator's learning rate
-    disc_optimizer = optim.Adam(discriminator.parameters(), lr=1e-3, betas=(0.9, 0.999))
+    # Initialize the discriminator with flat_obs_dim
+    discriminator = GAIfODiscriminator(flat_obs_dim, hidden_dim=64)
+    disc_optimizer = optim.Adam(discriminator.parameters(), lr=1e-3)
     bce_loss = nn.BCELoss()
 
     pre_train_rewards, _ = evaluate_policy(learner, env, 10, return_episode_rewards=True)
@@ -163,7 +132,6 @@ def main():
     # Training loop: use the number of iterations specified by the argument
     num_iterations = args.iterations
     rollout_length = 2048  # timesteps per rollout
-    lambda_gp = 10.0  # gradient penalty coefficient
     for itr in range(num_iterations):
         print(f"Iteration {itr+1}/{num_iterations}")
         try:
@@ -184,8 +152,8 @@ def main():
         last_obs_expanded = learner._last_obs[np.newaxis, ...]  # shape (1, n_envs, obs_dim)
         rollout_obs_next = np.concatenate([rollout_obs[1:], last_obs_expanded], axis=0)
         # Flatten the observations: from (rollout_length, n_envs, obs_dim) to (rollout_length*n_envs, obs_dim)
-        rollout_s = torch.tensor(rollout_obs.reshape(-1, flat_obs_dim), dtype=torch.float32).to(device)
-        rollout_s_next = torch.tensor(rollout_obs_next.reshape(-1, flat_obs_dim), dtype=torch.float32).to(device)
+        rollout_s = torch.tensor(rollout_obs.reshape(-1, flat_obs_dim), dtype=torch.float32)
+        rollout_s_next = torch.tensor(rollout_obs_next.reshape(-1, flat_obs_dim), dtype=torch.float32)
 
         # Train the discriminator
         disc_epochs = 5
@@ -201,9 +169,7 @@ def main():
             pred_expert = discriminator(s_expert, s_next_expert)
             loss_policy = bce_loss(pred_policy, torch.ones_like(pred_policy))
             loss_expert = bce_loss(pred_expert, torch.zeros_like(pred_expert))
-            # Compute gradient penalty on interpolated samples between expert and policy data
-            gp = compute_gradient_penalty(discriminator, s_expert, s_policy, s_next_expert, s_next_policy, device)
-            disc_loss = loss_policy + loss_expert + lambda_gp * gp
+            disc_loss = loss_policy + loss_expert
             disc_optimizer.zero_grad()
             disc_loss.backward()
             disc_optimizer.step()

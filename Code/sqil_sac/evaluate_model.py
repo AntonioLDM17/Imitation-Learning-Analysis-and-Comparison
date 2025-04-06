@@ -4,7 +4,7 @@ from stable_baselines3.common.evaluation import evaluate_policy
 
 # Config
 ENV_NAME = "HalfCheetah-v5"
-MODEL_PATH = "sqil_halfcheetah_500k.zip" # Path to the SQIL model
+MODEL_PATH = "models/sqil_halfcheetah_500k.zip" # Path to the SQIL model
 # MODEL_PATH = "sac_halfcheetah_v5_expert.zip"  # Path to the expert model
 N_EPISODES = 100  # Number of episodes for evaluation
 

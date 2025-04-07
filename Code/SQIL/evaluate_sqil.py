@@ -14,6 +14,18 @@ sys.modules["mujoco_py"] = dummy
 sys.modules["mujoco_py.builder"] = dummy.builder
 sys.modules["mujoco_py.locomotion"] = dummy.locomotion
 
+def select_action_discrete(agent, state, action_dim, evaluate=False):
+    """
+    For discrete action spaces, use the actor network's shared layers to produce logits,
+    and select the action with the highest probability.
+    """
+    state_tensor = torch.FloatTensor(state).unsqueeze(0).to(agent.actor.net[0].weight.device)
+    features = agent.actor.net(state_tensor)
+    logits = agent.actor.mean_linear(features)  # Use mean_linear as logits
+    probabilities = torch.softmax(logits, dim=-1)
+    action_index = torch.argmax(probabilities, dim=-1).item()
+    return action_index
+
 def main():
     parser = argparse.ArgumentParser(description="Evaluate a SQIL trained model")
     parser.add_argument("--env", type=str, default="HalfCheetah-v4",
@@ -33,12 +45,17 @@ def main():
     env = gym.make(args.env)
     state_dim = env.observation_space.shape[0]
 
-    # Assume continuous action space (Box)
+    # Check if the action space is continuous or discrete
     if isinstance(env.action_space, gym.spaces.Box):
+        discrete = False
         action_dim = env.action_space.shape[0]
         action_range = float(env.action_space.high[0])
+    elif isinstance(env.action_space, gym.spaces.Discrete):
+        discrete = True
+        action_dim = env.action_space.n
+        action_range = 1.0  # Not used in discrete mode
     else:
-        raise NotImplementedError("This evaluation is designed for continuous environments.")
+        raise NotImplementedError("This evaluation supports only continuous or discrete environments.")
 
     # Determine the model subdirectory based on the environment
     if args.env == "HalfCheetah-v4":
@@ -48,10 +65,10 @@ def main():
     else:
         raise ValueError("Unsupported environment. Use 'HalfCheetah-v4' or 'CartPole-v1'.")
 
-    # Instantiate the SQIL agent (other parameters can be adjusted according to training)
+    # Instantiate the SQIL agent (other parameters can be adjusted as needed)
     agent = SQILAgent(state_dim, action_dim, action_range=action_range, batch_size=256)
 
-    # Load the trained model weights
+    # Load trained model weights from the appropriate subdirectory
     actor_path = os.path.join(args.model_dir, model_subdir, "sqil_actor.pth")
     critic_path = os.path.join(args.model_dir, model_subdir, "sqil_critic.pth")
     if not os.path.exists(actor_path) or not os.path.exists(critic_path):
@@ -68,8 +85,12 @@ def main():
         done = False
         ep_reward = 0
         while not done:
-            action = agent.select_action(state)
-            next_state, reward, done, truncated, _ = env.step(action)
+            if not discrete:
+                action = agent.select_action(state, evaluate=True)
+            else:
+                action = select_action_discrete(agent, state, action_dim, evaluate=True)
+            # For discrete environments, pass the integer action to env.step(); for continuous, pass the action vector.
+            next_state, reward, done, truncated, _ = env.step(action if discrete else action)
             ep_reward += reward
             state = next_state
             if done or truncated:
@@ -87,4 +108,5 @@ def main():
 if __name__ == "__main__":
     print("Example usage:")
     print("python evaluate_sqil.py --env HalfCheetah-v4 --seed 42 --episodes 50 --model_dir models")
+    print("python evaluate_sqil.py --env CartPole-v1 --seed 42 --episodes 50 --model_dir models")
     main()

@@ -41,26 +41,6 @@ def extract_transitions_from_trajectory(traj):
         transitions.append((obs[i], acts[i], obs[i + 1], done))
     return transitions
 
-def one_hot(action, num_actions):
-    """Converts an action index to a one-hot vector."""
-    one_hot_vec = np.zeros(num_actions, dtype=np.float32)
-    one_hot_vec[action] = 1.0
-    return one_hot_vec
-
-# For discrete environments, define a custom action selection function.
-def select_action_discrete(agent, state, action_dim, evaluate=False):
-    """
-    For discrete action spaces, uses the actor network's shared layers to produce logits
-    and then returns the action with highest probability (as an integer). For storing into
-    the replay buffer, this action is later converted to one-hot.
-    """
-    state_tensor = torch.FloatTensor(state).unsqueeze(0).to(agent.actor.net[0].weight.device)
-    features = agent.actor.net(state_tensor)
-    logits = agent.actor.mean_linear(features)  # Use mean_linear as logits for discrete actions
-    probabilities = torch.softmax(logits, dim=-1)
-    action_index = torch.argmax(probabilities, dim=-1).item()
-    return action_index
-
 def main():
     parser = argparse.ArgumentParser(description="Train SQIL based on DI‑engine (SAC) in PyTorch")
     parser.add_argument("--env", type=str, default="HalfCheetah-v4",
@@ -78,17 +58,15 @@ def main():
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     
-    # Determine subdirectories and settings based on environment
+    # Determine subdirectories based on environment
     if args.env == "HalfCheetah-v4":
         demo_filename = "halfcheetah_demonstrations.npy"
         model_subdir = "halfcheetah"
         log_subdir = "halfcheetah"
-        discrete = False
     elif args.env == "CartPole-v1":
         demo_filename = "cartpole_demonstrations.npy"
         model_subdir = "cartpole"
         log_subdir = "cartpole"
-        discrete = True
     else:
         raise ValueError("Unsupported environment. Use 'HalfCheetah-v4' or 'CartPole-v1'.")
     
@@ -99,25 +77,17 @@ def main():
     env = gym.make(args.env)
     state_dim = env.observation_space.shape[0]
     
-    if not discrete:
-        # Continuous action space
-        if isinstance(env.action_space, gym.spaces.Box):
-            action_dim = env.action_space.shape[0]
-            action_range = float(env.action_space.high[0])
-        else:
-            raise NotImplementedError("This SQIL implementation is designed for continuous environments.")
+    # Assume continuous action space (Box)
+    if isinstance(env.action_space, gym.spaces.Box):
+        action_dim = env.action_space.shape[0]
+        action_range = float(env.action_space.high[0])
     else:
-        # Discrete action space
-        if isinstance(env.action_space, gym.spaces.Discrete):
-            action_dim = env.action_space.n
-            action_range = 1.0  # Not used in discrete mode
-        else:
-            raise NotImplementedError("This discrete version requires a Discrete action space.")
+        raise NotImplementedError("This SQIL implementation is designed for continuous environments.")
     
     # Instantiate the SQIL agent
     agent = SQILAgent(state_dim, action_dim, action_range=action_range, batch_size=args.batch_size)
     
-    # Load demonstrations
+    # Load demonstrations if provided
     if args.demo_path is not None:
         demo_path = args.demo_path
     else:
@@ -130,9 +100,6 @@ def main():
         transitions = extract_transitions_from_trajectory(traj)
         for transition in transitions:
             state, action, next_state, done = transition
-            # For discrete environments, convert the action to one-hot vector before storing
-            if discrete:
-                action = one_hot(action, action_dim)
             agent.store_demo(state, action, next_state, done)
     print(f"Demo buffer loaded with {len(agent.demo_buffer)} transitions.")
     writer.add_text("Demo/Info", f"Demo buffer: {len(agent.demo_buffer)} transitions.", global_step=0)
@@ -143,29 +110,15 @@ def main():
         state, _ = env.reset(seed=args.seed)
         episode_reward = 0
         for step in range(args.max_steps):
-            if not discrete:
-                action = agent.select_action(state)
-            else:
-                # Get discrete action index and then convert it to one-hot for storage
-                action_index = select_action_discrete(agent, state, action_dim)
-                action = one_hot(action_index, action_dim)
-            next_state, reward, done, truncated, _ = env.step(action_index if discrete else action)
+            action = agent.select_action(state)
+            next_state, reward, done, truncated, _ = env.step(action)
             # SQIL ignores the environment reward; agent transitions get reward 0
             agent.store_agent(state, action, next_state, float(done or truncated))
             state = next_state
             episode_reward += reward
             total_steps += 1
             if total_steps % args.update_every == 0:
-                try:
-                    losses = agent.update()
-                except Exception as e:
-                    # Debug: log shapes of state and action if an error occurs
-                    with open("debug_log.txt", "a") as f:
-                        f.write(f"Error at step {total_steps}:\n")
-                        f.write(f"State shape: {np.array(state).shape}\n")
-                        f.write(f"Action shape: {np.array(action).shape}\n")
-                        f.write(str(e) + "\n")
-                    raise e
+                losses = agent.update()
                 if losses is not None:
                     critic_loss, actor_loss, alpha_loss = losses
                     print(f"Step {total_steps}: Critic Loss = {critic_loss:.4f}, Actor Loss = {actor_loss:.4f}, Alpha = {alpha_loss:.4f}")
@@ -195,7 +148,7 @@ if __name__ == "__main__":
     print("Example usage for HalfCheetah:")
     print("python train_sqil.py --env HalfCheetah-v4 --demo_path ../data/demonstrations/halfcheetah_demonstrations.npy --seed 42 --episodes 1000")
     print("Example usage for CartPole:")
-    print("python train_sqil.py --env CartPole-v1 --demo_path ../data/demonstrations/cartpole_demonstrations.npy --seed 42 --episodes 350")
+    print("python train_sqil.py --env CartPole-v1 --demo_path ../data/demonstrations/cartpole_demonstrations.npy --seed 42 --episodes 1000")
     print("To view the training process, run:")
     print("tensorboard --logdir logs")
     main()

@@ -19,11 +19,57 @@ sys.modules["mujoco_py.locomotion"] = dummy.locomotion
 
 from torch.utils.tensorboard import SummaryWriter
 
-# Fixed parameters for the environment and training/evaluation episodes
-# Set ENV_NAME to either "HalfCheetah-v4" or "CartPole-v1"
-ENV_NAME = "HalfCheetah-v4"  # or "CartPole-v1"
+# Fixed parameters for environment and training/evaluation episodes.
+# Set ENV_NAME to either "HalfCheetah-v4" (continuous) or "CartPole-v1" (discrete)
+# ENV_NAME = "CartPole-v1"  
+ENV_NAME = "HalfCheetah-v4"
 TRAIN_EPISODES = 500
 EVAL_EPISODES = 50
+
+def one_hot(action, num_actions):
+    """Convert an action index to a one-hot vector."""
+    one_hot_vec = np.zeros(num_actions, dtype=np.float32)
+    one_hot_vec[action] = 1.0
+    return one_hot_vec
+
+def select_action_discrete(agent, state, action_dim, evaluate=False):
+    """
+    For discrete action spaces, use the actor network's shared layers to produce logits,
+    and choose the action with highest probability.
+    """
+    state_tensor = torch.FloatTensor(state).unsqueeze(0).to(agent.actor.net[0].weight.device)
+    features = agent.actor.net(state_tensor)
+    logits = agent.actor.mean_linear(features)  # Use mean_linear as logits
+    probabilities = torch.softmax(logits, dim=-1)
+    action_index = torch.argmax(probabilities, dim=-1).item()
+    return action_index
+
+def load_demonstrations(demo_path):
+    """
+    Expects the demonstrations file (NumPy .npy) to contain a list of TrajectoryWithRew objects.
+    """
+    demos = np.load(demo_path, allow_pickle=True)
+    return demos
+
+def extract_transitions_from_trajectory(traj):
+    """
+    Given a TrajectoryWithRew object, extracts transitions as tuples:
+    (state, action, next_state, done).
+    Assumes:
+      - 'obs' is an array of observations,
+      - 'acts' is an array of actions,
+      - 'terminal' indicates whether the trajectory is terminal.
+    Generates transitions for each consecutive pair of observations.
+    The final transition is marked as done if traj.terminal is True.
+    """
+    transitions = []
+    obs = traj.obs
+    acts = traj.acts
+    n = len(obs)
+    for i in range(n - 1):
+        done = (i == n - 2) and getattr(traj, "terminal", False)
+        transitions.append((obs[i], acts[i], obs[i + 1], done))
+    return transitions
 
 def objective(trial: optuna.Trial):
     # Suggest hyperparameters
@@ -41,34 +87,45 @@ def objective(trial: optuna.Trial):
     agent_buffer_capacity = 100000
     hidden_dim = 256
 
-    # Set seed (vary the seed between trials)
+    # Set seed (varying seed between trials)
     seed = 42 + trial.number
     np.random.seed(seed)
     torch.manual_seed(seed)
     
-    # Determine subdirectories for logs and models based on the environment
+    # Determine subdirectories based on ENV_NAME
     if ENV_NAME == "HalfCheetah-v4":
         demo_filename = "halfcheetah_demonstrations.npy"
         log_subdir = "halfcheetah"
         model_subdir = "halfcheetah"
+        discrete = False
     elif ENV_NAME == "CartPole-v1":
         demo_filename = "cartpole_demonstrations.npy"
         log_subdir = "cartpole"
         model_subdir = "cartpole"
+        discrete = True
     else:
         raise ValueError("Unsupported ENV_NAME.")
-
-    # Create a SummaryWriter specific for this trial under the proper logs subdirectory
+    
+    # Create a SummaryWriter for TensorBoard in the proper log directory
     writer = SummaryWriter(log_dir=os.path.join("logs", log_subdir, f"optuna_trial_{trial.number}"))
     
     # Create environment
     env = gym.make(ENV_NAME)
     state_dim = env.observation_space.shape[0]
-    if isinstance(env.action_space, gym.spaces.Box):
-        action_dim = env.action_space.shape[0]
-        action_range = float(env.action_space.high[0])
+    if not discrete:
+        # Continuous action space
+        if isinstance(env.action_space, gym.spaces.Box):
+            action_dim = env.action_space.shape[0]
+            action_range = float(env.action_space.high[0])
+        else:
+            raise NotImplementedError("This script is designed for continuous environments.")
     else:
-        raise NotImplementedError("This script is designed for continuous environments.")
+        # Discrete action space
+        if isinstance(env.action_space, gym.spaces.Discrete):
+            action_dim = env.action_space.n
+            action_range = 1.0  # Not used in discrete mode
+        else:
+            raise NotImplementedError("Discrete version requires a Discrete action space.")
     
     # Instantiate the SQIL agent with suggested hyperparameters
     agent = SQILAgent(
@@ -81,20 +138,20 @@ def objective(trial: optuna.Trial):
         batch_size=batch_size
     )
     
-    # Load demonstrations (adjust path according to project structure)
+    # Load demonstrations
     demo_path = os.path.join("..", "data", "demonstrations", demo_filename)
     if not os.path.exists(demo_path):
         raise FileNotFoundError(f"Demonstration file not found at {demo_path}")
-    demos = np.load(demo_path, allow_pickle=True)
+    demos = load_demonstrations(demo_path)
     print(f"Trial {trial.number}: Loading {len(demos)} demonstrations from {demo_path}")
-    # Extract transitions from each trajectory and store them in the demo buffer
     for traj in demos:
-        obs = traj.obs
-        acts = traj.acts
-        n = len(obs)
-        for i in range(n - 1):
-            done = (i == n - 2) and getattr(traj, "terminal", False)
-            agent.store_demo(obs[i], acts[i], obs[i + 1], done)
+        transitions = extract_transitions_from_trajectory(traj)
+        for transition in transitions:
+            state, action, next_state, done = transition
+            # For discrete environments, convert the action to a one-hot vector
+            if discrete:
+                action = one_hot(action, action_dim)
+            agent.store_demo(state, action, next_state, done)
     print(f"Trial {trial.number}: Demo buffer loaded with {len(agent.demo_buffer)} transitions.")
     writer.add_text("Demo/Info", f"Demo buffer: {len(agent.demo_buffer)} transitions.", global_step=0)
     
@@ -105,15 +162,28 @@ def objective(trial: optuna.Trial):
         state, _ = env.reset(seed=seed + episode)
         episode_reward = 0
         for step in range(max_steps):
-            action = agent.select_action(state)
-            next_state, reward, done, truncated, _ = env.step(action)
-            # SQIL ignores the environment reward; assign 0 for agent transitions
+            if not discrete:
+                action = agent.select_action(state)
+            else:
+                action_index = select_action_discrete(agent, state, action_dim)
+                action = one_hot(action_index, action_dim)
+            next_state, reward, done, truncated, _ = env.step(action_index if discrete else action)
+            # SQIL ignores the environment reward; agent transitions get reward 0
             agent.store_agent(state, action, next_state, float(done or truncated))
             state = next_state
             episode_reward += reward
             total_steps += 1
             if total_steps % update_every == 0:
-                losses = agent.update()
+                try:
+                    losses = agent.update()
+                except Exception as e:
+                    # Debug: log shapes of state and action if an error occurs
+                    with open("debug_log.txt", "a") as f:
+                        f.write(f"Error at step {total_steps}:\n")
+                        f.write(f"State shape: {np.array(state).shape}\n")
+                        f.write(f"Action shape: {np.array(action).shape}\n")
+                        f.write(str(e) + "\n")
+                    raise e
                 if losses is not None:
                     critic_loss, actor_loss, alpha_loss = losses
                     writer.add_scalar("Loss/Critic", critic_loss, total_steps)
@@ -123,13 +193,12 @@ def objective(trial: optuna.Trial):
                 break
         reward_history.append(episode_reward)
         writer.add_scalar("Train/EpisodeReward", episode_reward, episode)
-        # Debug: every 50 episodes, log average reward over last 50 episodes
         if episode % 50 == 0:
             avg_reward = np.mean(reward_history[-50:])
             print(f"Trial {trial.number} - Episode {episode}: Average reward over last 50 episodes = {avg_reward:.2f}")
             writer.add_text("Train/Debug", f"Episode {episode}: Avg reward (last 50) = {avg_reward:.2f}", global_step=episode)
     
-    # Save the trained model (actor) in the appropriate directory
+    # Save the trained model (actor) in the appropriate model subdirectory
     model_dir = os.path.join("models", model_subdir)
     os.makedirs(model_dir, exist_ok=True)
     model_name = f"sqil_actor_lr{actor_lr:.0e}_critic_lr{critic_lr:.0e}_alpha_lr{alpha_lr:.0e}_bs{batch_size}_upd{update_every}_ms{max_steps}.pth"
@@ -144,8 +213,12 @@ def objective(trial: optuna.Trial):
         state, _ = env.reset(seed=seed + 1000 + ep)
         ep_reward = 0
         while True:
-            action = agent.select_action(state, evaluate=True)
-            next_state, reward, done, truncated, _ = env.step(action)
+            if not discrete:
+                action = agent.select_action(state, evaluate=True)
+            else:
+                action_index = select_action_discrete(agent, state, action_dim, evaluate=True)
+                action = one_hot(action_index, action_dim)
+            next_state, reward, done, truncated, _ = env.step(action_index if discrete else action)
             ep_reward += reward
             state = next_state
             if done or truncated:

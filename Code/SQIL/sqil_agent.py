@@ -5,10 +5,10 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
-# Detecta si se dispone de GPU
+# Detect if GPU is available
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# --- Red Actor (Política Gaussian) ---
+# --- Actor Network (Gaussian Policy) ---
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim=256, log_std_min=-20, log_std_max=2):
         super(Actor, self).__init__()
@@ -34,18 +34,18 @@ class Actor(nn.Module):
         mean, log_std = self.forward(state)
         std = log_std.exp()
         normal = torch.distributions.Normal(mean, std)
-        x_t = normal.rsample()  # Truco de reparametrización
-        action = torch.tanh(x_t)  # Limita la acción a [-1, 1]
-        # Ajuste del log_prob considerando tanh
+        x_t = normal.rsample()  # Reparameterization trick
+        action = torch.tanh(x_t)  # Limits the action to [-1, 1]
+        # Adjust log_prob considering the tanh transformation
         log_prob = normal.log_prob(x_t) - torch.log(1 - action.pow(2) + 1e-6)
         log_prob = log_prob.sum(1, keepdim=True)
         return action, log_prob, torch.tanh(mean)
 
-# --- Red Critic (Red Q doble) ---
+# --- Critic Network (Double Q Network) ---
 class Critic(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim=256):
         super(Critic, self).__init__()
-        # Primera Q
+        # First Q network
         self.q1_net = nn.Sequential(
             nn.Linear(state_dim + action_dim, hidden_dim),
             nn.ReLU(),
@@ -53,7 +53,7 @@ class Critic(nn.Module):
             nn.ReLU(),
             nn.Linear(hidden_dim, 1)
         )
-        # Segunda Q
+        # Second Q network
         self.q2_net = nn.Sequential(
             nn.Linear(state_dim + action_dim, hidden_dim),
             nn.ReLU(),
@@ -87,11 +87,11 @@ class ReplayBuffer:
     def __len__(self):
         return len(self.buffer)
 
-# --- Agente SQIL basado en SAC ---
+# --- SQIL Agent based on SAC ---
 class SQILAgent:
     def __init__(self, state_dim, action_dim, action_range=1.0, 
                  actor_hidden=256, critic_hidden=256, 
-                 actor_lr=3e-4, critic_lr=3e-4, alpha_lr=3e-4,
+                 actor_lr=3e-4, critic_lr=3e-4, alpha_lr=1e-4,
                  gamma=0.99, tau=0.005, target_entropy=None,
                  demo_buffer_capacity=100000, agent_buffer_capacity=100000,
                  batch_size=256):
@@ -102,27 +102,27 @@ class SQILAgent:
         self.tau = tau
         self.batch_size = batch_size
         
-        # Red actor y optimizador
+        # Actor network and its optimizer
         self.actor = Actor(state_dim, action_dim, hidden_dim=actor_hidden).to(device)
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=actor_lr)
         
-        # Red critic y optimizador
+        # Critic network and its optimizer
         self.critic = Critic(state_dim, action_dim, hidden_dim=critic_hidden).to(device)
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=critic_lr)
         
-        # Red target critic
+        # Target critic network
         self.critic_target = Critic(state_dim, action_dim, hidden_dim=critic_hidden).to(device)
         self.critic_target.load_state_dict(self.critic.state_dict())
         
-        # Coeficiente de entropía (alpha) automático
+        # Automatic entropy coefficient (alpha)
         if target_entropy is None:
-            self.target_entropy = -action_dim  # Valor sugerido en SAC
+            self.target_entropy = -action_dim  # Suggested value in SAC
         else:
             self.target_entropy = target_entropy
         self.log_alpha = torch.tensor(0.0, requires_grad=True, device=device)
         self.alpha_optimizer = optim.Adam([self.log_alpha], lr=alpha_lr)
         
-        # Buffers de replay para demostraciones y para transiciones del agente
+        # Replay buffers for demonstrations and agent transitions
         self.demo_buffer = ReplayBuffer(demo_buffer_capacity)
         self.agent_buffer = ReplayBuffer(agent_buffer_capacity)
         
@@ -138,16 +138,16 @@ class SQILAgent:
             action, _, _ = self.actor.sample(state)
         return action.cpu().detach().numpy()[0] * self.action_range
     
-    # Almacenar transición de demostración (recompensa forzada a 1)
+    # Store demonstration transition (reward forced to 1)
     def store_demo(self, state, action, next_state, done):
         self.demo_buffer.push(state, action, 1.0, next_state, done)
         
-    # Almacenar transición del agente (recompensa forzada a 0)
+    # Store agent transition (reward forced to 0)
     def store_agent(self, state, action, next_state, done):
         self.agent_buffer.push(state, action, 0.0, next_state, done)
     
     def update(self):
-        # Se requiere que ambos buffers tengan suficientes muestras
+        # Ensure both buffers have enough samples
         if len(self.demo_buffer) < self.batch_size // 2 or len(self.agent_buffer) < self.batch_size // 2:
             return
         
@@ -157,7 +157,7 @@ class SQILAgent:
         state_d, action_d, reward_d, next_state_d, done_d = self.demo_buffer.sample(demo_batch_size)
         state_a, action_a, reward_a, next_state_a, done_a = self.agent_buffer.sample(agent_batch_size)
         
-        # Combinar ambos batches
+        # Combine both batches
         state = np.concatenate([state_d, state_a], axis=0)
         action = np.concatenate([action_d, action_a], axis=0)
         reward = np.concatenate([reward_d, reward_a], axis=0).reshape(-1, 1)
@@ -170,7 +170,7 @@ class SQILAgent:
         next_state = torch.FloatTensor(next_state).to(device)
         done = torch.FloatTensor(done).to(device)
         
-        # Actualización del Critic (ecuación de Bellman suave)
+        # Critic update (soft Bellman equation)
         with torch.no_grad():
             next_action, next_log_prob, _ = self.actor.sample(next_state)
             target_q1, target_q2 = self.critic_target(next_state, next_action)
@@ -184,7 +184,7 @@ class SQILAgent:
         critic_loss.backward()
         self.critic_optimizer.step()
         
-        # Actualización del Actor
+        # Actor update
         action_new, log_prob, _ = self.actor.sample(state)
         q1_new, q2_new = self.critic(state, action_new)
         q_new = torch.min(q1_new, q2_new)
@@ -194,13 +194,13 @@ class SQILAgent:
         actor_loss.backward()
         self.actor_optimizer.step()
         
-        # Actualización automática del coeficiente de entropía
+        # Automatic entropy coefficient (alpha) update
         alpha_loss = -(self.log_alpha * (log_prob + self.target_entropy).detach()).mean()
         self.alpha_optimizer.zero_grad()
         alpha_loss.backward()
         self.alpha_optimizer.step()
         
-        # Actualización suave de la red target
+        # Soft update of the target critic network
         for target_param, param in zip(self.critic_target.parameters(), self.critic.parameters()):
             target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
         

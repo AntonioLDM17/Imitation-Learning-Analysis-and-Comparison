@@ -19,13 +19,14 @@ sys.modules["mujoco_py.locomotion"] = dummy.locomotion
 
 from torch.utils.tensorboard import SummaryWriter
 
-# Parámetros fijos para el entorno y episodios de entrenamiento/evaluación
-ENV_NAME = "HalfCheetah-v4"
+# Fixed parameters for the environment and training/evaluation episodes
+# Set ENV_NAME to either "HalfCheetah-v4" or "CartPole-v1"
+ENV_NAME = "HalfCheetah-v4"  # or "CartPole-v1"
 TRAIN_EPISODES = 500
 EVAL_EPISODES = 50
 
 def objective(trial: optuna.Trial):
-    # Sugerir hiperparámetros
+    # Suggest hyperparameters
     actor_lr = trial.suggest_loguniform("actor_lr", 1e-5, 1e-3)
     critic_lr = trial.suggest_loguniform("critic_lr", 1e-5, 1e-3)
     alpha_lr  = trial.suggest_loguniform("alpha_lr", 1e-5, 1e-3)
@@ -35,29 +36,41 @@ def objective(trial: optuna.Trial):
     
     gamma = 0.99
     tau = 0.005
-    target_entropy = None  # Se calculará automáticamente en SQILAgent
+    target_entropy = None  # Will be computed automatically in SQILAgent
     demo_buffer_capacity = 100000
     agent_buffer_capacity = 100000
     hidden_dim = 256
 
-    # Configurar semilla (variamos la semilla entre trials)
+    # Set seed (vary the seed between trials)
     seed = 42 + trial.number
     np.random.seed(seed)
     torch.manual_seed(seed)
     
-    # Crear un SummaryWriter específico para este trial
-    writer = SummaryWriter(log_dir=f"logs/optuna_trial_{trial.number}")
+    # Determine subdirectories for logs and models based on the environment
+    if ENV_NAME == "HalfCheetah-v4":
+        demo_filename = "halfcheetah_demonstrations.npy"
+        log_subdir = "halfcheetah"
+        model_subdir = "halfcheetah"
+    elif ENV_NAME == "CartPole-v1":
+        demo_filename = "cartpole_demonstrations.npy"
+        log_subdir = "cartpole"
+        model_subdir = "cartpole"
+    else:
+        raise ValueError("Unsupported ENV_NAME.")
+
+    # Create a SummaryWriter specific for this trial under the proper logs subdirectory
+    writer = SummaryWriter(log_dir=os.path.join("logs", log_subdir, f"optuna_trial_{trial.number}"))
     
-    # Crear entorno
+    # Create environment
     env = gym.make(ENV_NAME)
     state_dim = env.observation_space.shape[0]
     if isinstance(env.action_space, gym.spaces.Box):
         action_dim = env.action_space.shape[0]
         action_range = float(env.action_space.high[0])
     else:
-        raise NotImplementedError("Este script está diseñado para entornos continuos.")
+        raise NotImplementedError("This script is designed for continuous environments.")
     
-    # Instanciar el agente SQIL con los hiperparámetros sugeridos
+    # Instantiate the SQIL agent with suggested hyperparameters
     agent = SQILAgent(
         state_dim, action_dim, action_range=action_range,
         actor_hidden=hidden_dim, critic_hidden=hidden_dim,
@@ -68,13 +81,13 @@ def objective(trial: optuna.Trial):
         batch_size=batch_size
     )
     
-    # Cargar demostraciones (ajustar la ruta según la estructura del proyecto)
-    demo_path = os.path.join("..", "data", "demonstrations", "halfcheetah_demonstrations.npy")
+    # Load demonstrations (adjust path according to project structure)
+    demo_path = os.path.join("..", "data", "demonstrations", demo_filename)
     if not os.path.exists(demo_path):
-        raise FileNotFoundError(f"No se encontró el archivo de demostraciones en {demo_path}")
+        raise FileNotFoundError(f"Demonstration file not found at {demo_path}")
     demos = np.load(demo_path, allow_pickle=True)
-    print(f"Trial {trial.number}: Cargando {len(demos)} demostraciones desde {demo_path}")
-    # Extraer transiciones de cada trayectoria y almacenarlas en el buffer de demostraciones
+    print(f"Trial {trial.number}: Loading {len(demos)} demonstrations from {demo_path}")
+    # Extract transitions from each trajectory and store them in the demo buffer
     for traj in demos:
         obs = traj.obs
         acts = traj.acts
@@ -82,10 +95,10 @@ def objective(trial: optuna.Trial):
         for i in range(n - 1):
             done = (i == n - 2) and getattr(traj, "terminal", False)
             agent.store_demo(obs[i], acts[i], obs[i + 1], done)
-    print(f"Trial {trial.number}: Buffer de demostraciones cargado con {len(agent.demo_buffer)} transiciones.")
-    writer.add_text("Demo/Info", f"Buffer de demostraciones: {len(agent.demo_buffer)} transiciones.", global_step=0)
+    print(f"Trial {trial.number}: Demo buffer loaded with {len(agent.demo_buffer)} transitions.")
+    writer.add_text("Demo/Info", f"Demo buffer: {len(agent.demo_buffer)} transitions.", global_step=0)
     
-    # Entrenar el agente durante TRAIN_EPISODES episodios
+    # Train the agent for TRAIN_EPISODES episodes
     total_steps = 0
     reward_history = []
     for episode in range(1, TRAIN_EPISODES + 1):
@@ -94,7 +107,7 @@ def objective(trial: optuna.Trial):
         for step in range(max_steps):
             action = agent.select_action(state)
             next_state, reward, done, truncated, _ = env.step(action)
-            # SQIL ignora la recompensa ambiental; se asigna 0 a las transiciones del agente
+            # SQIL ignores the environment reward; assign 0 for agent transitions
             agent.store_agent(state, action, next_state, float(done or truncated))
             state = next_state
             episode_reward += reward
@@ -110,22 +123,22 @@ def objective(trial: optuna.Trial):
                 break
         reward_history.append(episode_reward)
         writer.add_scalar("Train/EpisodeReward", episode_reward, episode)
-        # Debug: cada 50 episodios, imprimir y loguear la recompensa media de esos episodios
+        # Debug: every 50 episodes, log average reward over last 50 episodes
         if episode % 50 == 0:
             avg_reward = np.mean(reward_history[-50:])
-            print(f"Trial {trial.number} - Episodio {episode}: Recompensa media de los últimos 50 episodios = {avg_reward:.2f}")
-            writer.add_text("Train/Debug", f"Episodio {episode}: Recompensa media últimos 50 = {avg_reward:.2f}", global_step=episode)
+            print(f"Trial {trial.number} - Episode {episode}: Average reward over last 50 episodes = {avg_reward:.2f}")
+            writer.add_text("Train/Debug", f"Episode {episode}: Avg reward (last 50) = {avg_reward:.2f}", global_step=episode)
     
-    # Guardar el modelo (actor) con un nombre que incluya los hiperparámetros
-    model_name = f"sqil_actor_lr{actor_lr:.0e}_critic_lr{critic_lr:.0e}_alpha_lr{alpha_lr:.0e}_bs{batch_size}_upd{update_every}_ms{max_steps}.pth"
-    model_dir = "models"
+    # Save the trained model (actor) in the appropriate directory
+    model_dir = os.path.join("models", model_subdir)
     os.makedirs(model_dir, exist_ok=True)
+    model_name = f"sqil_actor_lr{actor_lr:.0e}_critic_lr{critic_lr:.0e}_alpha_lr{alpha_lr:.0e}_bs{batch_size}_upd{update_every}_ms{max_steps}.pth"
     actor_save_path = os.path.join(model_dir, model_name)
     torch.save(agent.actor.state_dict(), actor_save_path)
-    print(f"Trial {trial.number}: Modelo guardado en {actor_save_path}")
-    writer.add_text("Model/Info", f"Modelo guardado en {actor_save_path}", global_step=TRAIN_EPISODES)
+    print(f"Trial {trial.number}: Model saved at {actor_save_path}")
+    writer.add_text("Model/Info", f"Model saved at {actor_save_path}", global_step=TRAIN_EPISODES)
     
-    # Evaluar el modelo entrenado en EVAL_EPISODES episodios
+    # Evaluate the trained model on EVAL_EPISODES episodes
     eval_rewards = []
     for ep in range(1, EVAL_EPISODES + 1):
         state, _ = env.reset(seed=seed + 1000 + ep)
@@ -141,8 +154,8 @@ def objective(trial: optuna.Trial):
         writer.add_scalar("Eval/EpisodeReward", ep_reward, ep)
     mean_reward = np.mean(eval_rewards)
     std_reward = np.std(eval_rewards)
-    print(f"Trial {trial.number}: Evaluación en {EVAL_EPISODES} episodios: Recompensa media = {mean_reward:.2f} (std: {std_reward:.2f})")
-    writer.add_text("Eval/Info", f"Recompensa media: {mean_reward:.2f}, std: {std_reward:.2f}", global_step=TRAIN_EPISODES)
+    print(f"Trial {trial.number}: Evaluation over {EVAL_EPISODES} episodes: Mean reward = {mean_reward:.2f} (std: {std_reward:.2f})")
+    writer.add_text("Eval/Info", f"Mean reward: {mean_reward:.2f}, std: {std_reward:.2f}", global_step=TRAIN_EPISODES)
     
     env.close()
     writer.close()
@@ -150,15 +163,15 @@ def objective(trial: optuna.Trial):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Optuna hyperparameter optimization for SQILAgent")
-    parser.add_argument("--n_trials", type=int, default=20, help="Número de trials de Optuna")
+    parser.add_argument("--n_trials", type=int, default=20, help="Number of Optuna trials")
     args = parser.parse_args()
     
     study = optuna.create_study(direction="maximize")
     study.optimize(objective, n_trials=args.n_trials)
     
-    print("Mejor trial:")
+    print("Best trial:")
     trial = study.best_trial
-    print(f"Valor objetivo: {trial.value:.2f}")
-    print("Mejores hiperparámetros:")
+    print(f"Objective value: {trial.value:.2f}")
+    print("Best hyperparameters:")
     for key, value in trial.params.items():
         print(f"  {key}: {value}")

@@ -17,50 +17,57 @@ sys.modules["mujoco_py.locomotion"] = dummy.locomotion
 def main():
     parser = argparse.ArgumentParser(description="Evaluate a SQIL trained model")
     parser.add_argument("--env", type=str, default="HalfCheetah-v4",
-                        help="Nombre del entorno Gym (ej: HalfCheetah-v4 o CartPole-v1)")
-    parser.add_argument("--seed", type=int, default=42, help="Semilla aleatoria")
+                        help="Gym environment name (e.g., HalfCheetah-v4 or CartPole-v1)")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--episodes", type=int, default=50,
-                        help="Número de episodios para la evaluación")
+                        help="Number of evaluation episodes")
     parser.add_argument("--model_dir", type=str, default="models",
-                        help="Directorio donde están guardados los modelos (sqil_actor.pth, sqil_critic.pth)")
+                        help="Directory where the models are stored (e.g., models/halfcheetah or models/cartpole)")
     args = parser.parse_args()
 
-    # Configurar semilla
+    # Set seed
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
 
-    # Crear entorno
+    # Create environment
     env = gym.make(args.env)
     state_dim = env.observation_space.shape[0]
-    
-    # Asumir que el espacio de acción es continuo (Box)
+
+    # Assume continuous action space (Box)
     if isinstance(env.action_space, gym.spaces.Box):
         action_dim = env.action_space.shape[0]
         action_range = float(env.action_space.high[0])
     else:
-        raise NotImplementedError("Esta evaluación está diseñada para entornos continuos.")
+        raise NotImplementedError("This evaluation is designed for continuous environments.")
 
-    # Instanciar el agente SQIL (los demás parámetros se pueden ajustar según los usados en entrenamiento)
+    # Determine the model subdirectory based on the environment
+    if args.env == "HalfCheetah-v4":
+        model_subdir = "halfcheetah"
+    elif args.env == "CartPole-v1":
+        model_subdir = "cartpole"
+    else:
+        raise ValueError("Unsupported environment. Use 'HalfCheetah-v4' or 'CartPole-v1'.")
+
+    # Instantiate the SQIL agent (other parameters can be adjusted according to training)
     agent = SQILAgent(state_dim, action_dim, action_range=action_range, batch_size=256)
 
-    # Cargar pesos entrenados
-    actor_path = os.path.join(args.model_dir, "sqil_actor.pth")
-    critic_path = os.path.join(args.model_dir, "sqil_critic.pth")
+    # Load the trained model weights
+    actor_path = os.path.join(args.model_dir, model_subdir, "sqil_actor.pth")
+    critic_path = os.path.join(args.model_dir, model_subdir, "sqil_critic.pth")
     if not os.path.exists(actor_path) or not os.path.exists(critic_path):
-        raise FileNotFoundError("No se encontraron los archivos de modelo en el directorio especificado.")
+        raise FileNotFoundError("Model files not found in the specified directory.")
     
     agent.actor.load_state_dict(torch.load(actor_path, map_location=torch.device("cpu")))
     agent.critic.load_state_dict(torch.load(critic_path, map_location=torch.device("cpu")))
-    print(f"Modelos cargados desde {args.model_dir}")
+    print(f"Models loaded from {os.path.join(args.model_dir, model_subdir)}")
 
-    # Evaluación: ejecutar el agente en n episodios y medir recompensa acumulada
+    # Evaluation: run the agent for a number of episodes and measure accumulated reward
     rewards = []
     for ep in range(1, args.episodes + 1):
-        state, _ = env.reset(seed=args.seed + ep)  # Cambiar la semilla por episodio para mayor variabilidad
+        state, _ = env.reset(seed=args.seed + ep)  # Vary seed per episode for more variability
         done = False
         ep_reward = 0
         while not done:
-            # Seleccionar acción (se utiliza la función select_action definida en el agente)
             action = agent.select_action(state)
             next_state, reward, done, truncated, _ = env.step(action)
             ep_reward += reward
@@ -68,16 +75,16 @@ def main():
             if done or truncated:
                 break
         rewards.append(ep_reward)
-        print(f"Episodio {ep}: Recompensa acumulada = {ep_reward:.2f}")
-    
+        print(f"Episode {ep}: Accumulated Reward = {ep_reward:.2f}")
+
     mean_reward = np.mean(rewards)
     std_reward = np.std(rewards)
-    print(f"\nEvaluación sobre {args.episodes} episodios:")
-    print(f"  Recompensa media: {mean_reward:.2f}")
-    print(f"  Desviación estándar: {std_reward:.2f}")
+    print(f"\nEvaluation over {args.episodes} episodes:")
+    print(f"  Mean Reward: {mean_reward:.2f}")
+    print(f"  Standard Deviation: {std_reward:.2f}")
     env.close()
 
 if __name__ == "__main__":
-    print("Uso de ejemplo:")
+    print("Example usage:")
     print("python evaluate_sqil.py --env HalfCheetah-v4 --seed 42 --episodes 50 --model_dir models")
     main()

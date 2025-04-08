@@ -6,15 +6,15 @@ from torch.utils.tensorboard import SummaryWriter
 from sklearn.decomposition import PCA
 
 def extract_transitions_from_trajectory(traj):
-    """
-    Dado un objeto TrajectoryWithRew, extrae transiciones en forma de tuplas:
-    (estado, acción, estado_siguiente, done).
-    Se asume que:
-      - 'obs' es un array de observaciones,
-      - 'acts' es un array de acciones,
-      - 'terminal' indica si la trayectoria termina.
-    Se generan transiciones para cada par consecutivo de observaciones.
-    La transición final se marca como done si traj.terminal es True.
+    """ 
+    Given a TrajectoryWithRew object, extract transitions in the form of tuples:
+    (state, action, next_state, done).
+    It is assumed that:
+        - 'obs' is an array of observations,
+        - 'acts' is an array of actions,
+        - 'terminal' indicates if the trajectory ends.
+    Transitions are generated for each consecutive pair of observations.
+    The final transition is marked as done if traj.terminal is True.
     """
     transitions = []
     obs = traj.obs
@@ -35,33 +35,33 @@ def main():
                         help="Directory for TensorBoard logs")
     args = parser.parse_args()
     
-    # Cargar demostraciones
+    # Load demonstrations
     demos = np.load(args.demo_path, allow_pickle=True)
     print(f"Loaded {len(demos)} demonstrations from {args.demo_path}")
-    
-    # Agregar todos los estados y acciones de cada trayectoria
+
+    # Add all states and actions from each trajectory
     all_states = []
     all_actions = []
     for traj in demos:
-        # Suponemos que cada traj tiene atributos 'obs' y 'acts'
+        # We suppose that each traj has attributes 'obs' and 'acts'
         all_states.append(traj.obs)
         all_actions.append(traj.acts)
     all_states = np.concatenate(all_states, axis=0)
     all_actions = np.concatenate(all_actions, axis=0)
     print(f"Total states: {all_states.shape}, Total actions: {all_actions.shape}")
     
-    # Calcular estadísticas de los estados
+    # Calculate mean and std of states
     state_mean = np.mean(all_states, axis=0)
     state_std = np.std(all_states, axis=0)
     
-    # Calcular PCA para estados (reducción a 2 dimensiones)
+    # Calculate PCA for states (reduce to 2 dimensions)
     pca = PCA(n_components=2)
     states_pca = pca.fit_transform(all_states)
     
-    # Crear TensorBoard writer
+    # Create TensorBoard writer
     writer = SummaryWriter(args.log_dir)
     
-    # Log de estadísticas en texto
+    # Log statistics to TensorBoard
     stats_text = (
         f"Total demonstrations: {len(demos)}\n"
         f"Total transitions (states): {all_states.shape[0]}\n"
@@ -70,7 +70,7 @@ def main():
     )
     writer.add_text("Demo_Stats", stats_text, global_step=0)
     
-    # Generar y registrar gráfico de PCA de los estados
+    # Generate and log PCA plot of states
     fig_pca, ax_pca = plt.subplots(figsize=(8,6))
     ax_pca.scatter(states_pca[:,0], states_pca[:,1], s=1, alpha=0.5)
     ax_pca.set_title("PCA of States from Demonstrations")
@@ -79,7 +79,7 @@ def main():
     writer.add_figure("PCA/States", fig_pca, global_step=0)
     plt.close(fig_pca)
     
-    # Generar y registrar histogramas de las acciones (para cada dimensión)
+    # Generate and log histograms of actions (for each dimension)
     num_action_dims = all_actions.shape[1]
     for i in range(num_action_dims):
         fig_hist, ax_hist = plt.subplots(figsize=(8,6))

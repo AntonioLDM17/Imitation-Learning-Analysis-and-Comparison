@@ -21,64 +21,7 @@ sys.modules["mujoco_py.locomotion"] = dummy.locomotion
 
 from imitation.util.util import make_vec_env
 from imitation.data.wrappers import RolloutInfoWrapper
-from dac import DAC
-
-# --- Updated DAC_Discriminator for continuous actions ---
-class DAC_Discriminator(nn.Module):
-    def __init__(self, observation_space, action_space):
-        """
-        Discriminator network that receives the concatenation of an observation and an action,
-        and estimates the probability that the pair comes from an expert.
-        Extracts dimensions from the provided spaces.
-        """
-        super(DAC_Discriminator, self).__init__()
-        if not hasattr(observation_space, "shape") or not hasattr(action_space, "shape"):
-            raise ValueError("Both observation_space and action_space must have a 'shape' attribute")
-        obs_dim = observation_space.shape[0]
-        act_dim = action_space.shape[0]
-        self.net = nn.Sequential(
-            nn.Linear(obs_dim + act_dim, 64),
-            nn.ReLU(),
-            nn.Linear(64, 64),
-            nn.ReLU(),
-            nn.Linear(64, 1),
-            nn.Sigmoid()  # Output between 0 and 1
-        )
-
-    def forward(self, obs, act):
-        x = torch.cat([obs, act], dim=1)
-        return self.net(x)
-
-# --- Define Networks for Continuous DAC ---
-class ContinuousActor(nn.Module):
-    def __init__(self, obs_dim, act_dim):
-        super(ContinuousActor, self).__init__()
-        self.net = nn.Sequential(
-            nn.Linear(obs_dim, 64),
-            nn.ReLU(),
-            nn.Linear(64, 64),
-            nn.ReLU(),
-            nn.Linear(64, act_dim),
-            nn.Tanh()  # Actions in [-1, 1]
-        )
-
-    def forward(self, x):
-        return self.net(x)
-
-class ContinuousCritic(nn.Module):
-    def __init__(self, obs_dim, act_dim):
-        super(ContinuousCritic, self).__init__()
-        self.net = nn.Sequential(
-            nn.Linear(obs_dim + act_dim, 64),
-            nn.ReLU(),
-            nn.Linear(64, 64),
-            nn.ReLU(),
-            nn.Linear(64, 1)
-        )
-
-    def forward(self, obs, act):
-        x = torch.cat([obs, act], dim=1)
-        return self.net(x)
+from dac import DAC_Discriminator, ContinuousActor, ContinuousCritic, DAC
 
 # --- Helper to flatten demonstration trajectories ---
 def flatten_demonstrations(demos):
@@ -97,11 +40,10 @@ def flatten_demonstrations(demos):
 # --- Evaluation Function for DAC Agent ---
 def evaluate_dac(actor, env, eval_episodes=5):
     rewards = []
-    # Get the device of the actor
     device = next(actor.parameters()).device
     for ep in range(eval_episodes):
         state, _ = env.reset()
-        # If the observation has an extra dimension, use the first element
+        # If the state comes with an extra dimension, take the first element
         if isinstance(state, np.ndarray) and state.ndim == 2:
             state = state[0]
         ep_reward = 0.0
@@ -109,11 +51,8 @@ def evaluate_dac(actor, env, eval_episodes=5):
         while not done:
             state_tensor = torch.FloatTensor(state).unsqueeze(0).to(device)
             with torch.no_grad():
-                # Actor output is batched; extract the action (shape: (act_dim,))
                 action = actor(state_tensor).cpu().numpy()[0]
-            # For non-vectorized env, send the action directly
             result = env.step(action)
-            # Gymnasium for non-vectorized env returns (obs, reward, terminated, truncated, info)
             if len(result) == 5:
                 next_state, reward, terminated, truncated, _ = result
                 done = terminated or truncated
@@ -133,23 +72,19 @@ def objective(trial: optuna.Trial):
     critic_lr = trial.suggest_float("critic_lr", 1e-5, 1e-3, log=True)
     disc_lr   = trial.suggest_float("disc_lr", 1e-5, 1e-3, log=True)
     batch_size = trial.suggest_categorical("batch_size", [64, 128, 256])
-    max_timesteps = trial.suggest_categorical("max_timesteps", [10000, 20000, 30000])
-    gamma = 0.99
+    max_timesteps = trial.suggest_categorical("max_timesteps", [300_000, 600_000, 900_000])
 
     # Use HalfCheetah-v4 for continuous experiments
     ENV_NAME = "HalfCheetah-v4"
     demo_filename = "halfcheetah_demonstrations.npy"
     
-    # Create a vectorized environment with a single environment (for simplicity)
+    # Create a vectorized environment with a single environment for simplicity
     train_env = make_vec_env(
         ENV_NAME,
         rng=np.random.default_rng(42 + trial.number),
         n_envs=1,
         post_wrappers=[lambda env, _: RolloutInfoWrapper(env)]
     )
-    
-    # Create a TensorBoard writer for this trial
-    writer = SummaryWriter(log_dir=os.path.join("logs", f"dac_optuna_trial_{trial.number}"))
     
     # Load demonstration data
     demo_path = os.path.join("..", "data", "demonstrations", demo_filename)
@@ -182,7 +117,14 @@ def objective(trial: optuna.Trial):
     
     replay_buffer = dac_trainer.replay_buffer
 
-    # Extract the initial (flattened) state (as in train_dac.py)
+    # Initialize TensorBoard SummaryWriter for this trial
+    suffix = "halfcheetah" if ENV_NAME == "HalfCheetah-v4" else "cartpole"
+    os.makedirs("logs", exist_ok=True)
+    os.makedirs(os.path.join("logs", "dac_"+suffix), exist_ok=True)
+    # Create a unique log directory for each trial
+    writer = SummaryWriter(log_dir=os.path.join("logs", "dac_"+suffix, f"dac_optuna_trial_{trial.number}"))
+
+    # Get an initial (flat) state (if state has an extra dimension, take first element)
     raw_state = train_env.reset()[0]
     if isinstance(raw_state, np.ndarray) and raw_state.ndim == 2:
         state = raw_state[0]
@@ -190,10 +132,12 @@ def objective(trial: optuna.Trial):
         state = raw_state
 
     timestep = 0
+    # Run the simulation for max_timesteps
     while timestep < max_timesteps:
         state_tensor = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
         with torch.no_grad():
             action = actor_net(state_tensor).cpu().numpy()[0]
+        # Wrap the action in an array to comply with vectorized envs
         result = train_env.step(np.array([action]))
         if len(result) == 5:
             next_obs, reward_batch, terminated, truncated, _ = result
@@ -210,6 +154,7 @@ def objective(trial: optuna.Trial):
         replay_buffer.append((state, action, reward, next_obs, float(done)))
         state = next_obs
         timestep += 1
+        # Reset the environment if done
         if done:
             raw_state = train_env.reset()[0]
             if isinstance(raw_state, np.ndarray) and raw_state.ndim == 2:
@@ -217,7 +162,11 @@ def objective(trial: optuna.Trial):
             else:
                 state = raw_state
 
-    # If there are enough samples, perform updates and log losses
+        # (Optional) Log progress every 1000 timesteps
+        if timestep % 1000 == 0:
+            writer.add_scalar("Progress/Timestep", timestep, timestep)
+
+    # If there are enough samples, perform one update and log losses
     if len(replay_buffer) >= batch_size:
         indices = np.random.choice(len(replay_buffer), batch_size, replace=False)
         batch = [replay_buffer[i] for i in indices]
@@ -230,8 +179,8 @@ def objective(trial: optuna.Trial):
         actor_loss, critic_loss = dac_trainer.update_actor_critic((obs_b, act_b, reward_b, next_obs_b, done_b))
         writer.add_scalar("Loss/Actor", actor_loss, timestep)
         writer.add_scalar("Loss/Critic", critic_loss, timestep)
-        
-        disc_losses = []
+        disc_loss_total = 0.0
+        # Run several discriminator update steps
         for _ in range(5):
             indices = np.random.choice(len(replay_buffer), batch_size, replace=True)
             batch = [replay_buffer[i] for i in indices]
@@ -244,49 +193,32 @@ def objective(trial: optuna.Trial):
             policy_obs = torch.tensor(np.array(obs_ex), dtype=torch.float32).to(device)
             policy_act = torch.tensor(np.array(act_ex), dtype=torch.float32).to(device)
             disc_loss = dac_trainer.update_discriminator((expert_obs, expert_act), (policy_obs, policy_act))
-            disc_losses.append(disc_loss)
-            writer.add_scalar("Loss/Discriminator", disc_loss, timestep)
-        avg_disc_loss = np.mean(disc_losses)
-        writer.add_scalar("Loss/Discriminator_Avg", avg_disc_loss, timestep)
-    
-    # Use a non-vectorized environment for evaluation to avoid dimension issues
+            disc_loss_total += disc_loss
+        disc_loss_avg = disc_loss_total / 5.0
+        writer.add_scalar("Loss/Discriminator", disc_loss_avg, timestep)
+
+    # Evaluate the trained actor using a non-vectorized environment (to avoid dimension issues)
     eval_env = gym.make(ENV_NAME)
     eval_reward = evaluate_dac(actor_net, eval_env, eval_episodes=5)
-    writer.add_scalar("Reward/Eval", eval_reward, timestep)
+    writer.add_scalar("Reward/Evaluation", eval_reward, timestep)
+
+    # Save the actor model with a name that includes the hyperparameters
+    model_name = f"dac_actor_lr{actor_lr:.0e}_critic_lr{critic_lr:.0e}_disc_lr{disc_lr:.0e}_bs{batch_size}_ms{max_timesteps}.pt"
+    if ENV_NAME == "HalfCheetah-v4":
+        suffix = "halfcheetah"
+    elif ENV_NAME == "CartPole-v1":
+        suffix = "cartpole"
+    else:
+        suffix = "unknown"
+    os.makedirs("models", exist_ok=True)
+    os.makedirs(os.path.join("models", suffix), exist_ok=True)
+    torch.save(actor_net.state_dict(), os.path.join("models", suffix, model_name))
+    writer.add_text("Model", f"Saved model: {model_name}", global_step=timestep)
+
     train_env.close()
     eval_env.close()
-    
-    if ENV_NAME == "HalfCheetah-v4":
-        # Save the models in a subdirectory named after the environment
-        model_subdir = "halfcheetah"
-    elif ENV_NAME == "CartPole-v1":
-        model_subdir = "cartpole"
-    else:
-        raise ValueError("Unsupported environment. Use 'HalfCheetah-v4' or 'CartPole-v1'.")
-    # Save the models with filenames that encode the hyperparameter combination
-    model_dir = os.path.join("models", model_subdir, f"trial_{trial.number}")
-    os.makedirs(model_dir, exist_ok=True)
-    model_name_actor = os.path.join(
-        model_dir, 
-        f"dac_actor_lr{actor_lr:.0e}_critic_lr{critic_lr:.0e}_disc_lr{disc_lr:.0e}_bs{batch_size}_ms{max_timesteps}.pt"
-    )
-    torch.save(actor_net.state_dict(), model_name_actor)
-    model_name_critic = os.path.join(
-        model_dir, 
-        f"dac_critic_lr{actor_lr:.0e}_critic_lr{critic_lr:.0e}_disc_lr{disc_lr:.0e}_bs{batch_size}_ms{max_timesteps}.pt"
-    )
-    torch.save(critic_net.state_dict(), model_name_critic)
-    model_name_disc = os.path.join(
-        model_dir, 
-        f"dac_disc_lr{actor_lr:.0e}_critic_lr{critic_lr:.0e}_disc_lr{disc_lr:.0e}_bs{batch_size}_ms{max_timesteps}.pt"
-    )
-    torch.save(discriminator.state_dict(), model_name_disc)
-    
-    writer.add_text("Model Info", f"Saved actor at {model_name_actor}")
-    writer.add_text("Model Info", f"Saved critic at {model_name_critic}")
-    writer.add_text("Model Info", f"Saved discriminator at {model_name_disc}")
     writer.close()
-    
+
     print(f"Trial {trial.number}: Evaluation reward = {eval_reward:.2f}")
     return eval_reward
 

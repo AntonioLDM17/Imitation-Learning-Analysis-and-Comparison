@@ -82,7 +82,7 @@ def main():
     parser = argparse.ArgumentParser(description="Train GAIfO using TRPO (state-only imitation).")
     parser.add_argument("--env", type=str, choices=["cartpole", "halfcheetah"],
                         default="cartpole", help="Environment: 'cartpole' or 'halfcheetah'")
-    parser.add_argument("--iterations", type=int, default=50,
+    parser.add_argument("--iterations", type=int, default=300,
                         help="Number of training iterations")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     args = parser.parse_args()
@@ -149,7 +149,8 @@ def main():
     # Initialize the discriminator with flat_obs_dim and move it to device
     discriminator = GAIfODiscriminator(flat_obs_dim, hidden_dim=64).to(device)
     # Increase the discriminator's learning rate
-    disc_optimizer = optim.Adam(discriminator.parameters(), lr=1e-3, betas=(0.9, 0.999))
+    disc_lr = 3.989020006157259e-05 # Adjusted learning rate for the discriminator
+    disc_optimizer = optim.Adam(discriminator.parameters(), lr=disc_lr, betas=(0.9, 0.999))
     bce_loss = nn.BCELoss()
 
     pre_train_rewards, _ = evaluate_policy(learner, env, 10, return_episode_rewards=True)
@@ -163,7 +164,7 @@ def main():
     # Training loop: use the number of iterations specified by the argument
     num_iterations = args.iterations
     rollout_length = 2048  # timesteps per rollout
-    lambda_gp = 10.0  # gradient penalty coefficient
+    lambda_gp = 1.660941233998641  # gradient penalty coefficient
     for itr in range(num_iterations):
         print(f"Iteration {itr+1}/{num_iterations}")
         try:
@@ -188,8 +189,8 @@ def main():
         rollout_s_next = torch.tensor(rollout_obs_next.reshape(-1, flat_obs_dim), dtype=torch.float32).to(device)
 
         # Train the discriminator
-        disc_epochs = 5
-        batch_size = 64
+        disc_epochs = 10
+        batch_size = 256
         for epoch in range(disc_epochs):
             idx_policy = np.random.choice(rollout_s.shape[0], batch_size, replace=True)
             idx_expert = np.random.choice(expert_s.shape[0], batch_size, replace=True)
@@ -242,3 +243,4 @@ if __name__ == "__main__":
     print("Example usage:")
     print("python train_gaifo.py --env halfcheetah --iterations 50 --seed 42")
     main()
+    

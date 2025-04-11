@@ -39,7 +39,7 @@ def main():
     DEMO_DIR = os.path.join("..", "data", "demonstrations")
     DEMO_FILENAME = f"{args.env}_demonstrations.npy"
     MODEL_DIR = "models"
-    MODEL_NAME = f"bc_{args.env}.pt"  # Usamos extensión .pt para guardar el state_dict
+    MODEL_NAME = f"bc_{args.env}.pt"  # We use .pt to save state_dict()
     os.makedirs(MODEL_DIR, exist_ok=True)
 
     # Set up TensorBoard logging

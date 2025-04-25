@@ -47,7 +47,7 @@ class GAIfODiscriminator(nn.Module):
             nn.Sigmoid()  # Output in (0,1)
         )
     def forward(self, s, s_next):
-        # Assume s and s_next are of shape (batch_size, flat_obs_dim)
+        # Assume s and s_next have shape (batch_size, flat_obs_dim)
         x = torch.cat([s, s_next], dim=1)
         return self.net(x)
 
@@ -161,6 +161,10 @@ def main():
     dummy_callback = DummyCallback()
     dummy_callback.model = learner
 
+    # Initialize collapse counter
+    collapse_threshold = 0  # Collapse occurs when the reward drops below 0 (for HalfCheetah)
+    collapse_count = 0  # Initialize the collapse count
+
     # Training loop: use the number of iterations specified by the argument
     num_iterations = args.iterations
     rollout_length = 2048  # timesteps per rollout
@@ -222,9 +226,19 @@ def main():
         learner.rollout_buffer.rewards = rewards_np
         learner.train()
 
+        # Calculate mean reward for collapse detection
+        post_train_rewards, _ = evaluate_policy(learner, env, 10, return_episode_rewards=True)
+        mean_reward = np.mean(post_train_rewards)
+
+        # Check for collapse: if the mean reward falls below a threshold, increment collapse count
+        if mean_reward < collapse_threshold:
+            collapse_count += 1
+            print(f"Collapse detected at iteration {itr+1}. Total collapses: {collapse_count}")
+
+        # Log collapse count
+        writer.add_scalar("Collapses/Count", collapse_count, itr+1)
+
         if (itr + 1) % 10 == 0:
-            post_train_rewards, _ = evaluate_policy(learner, env, 10, return_episode_rewards=True)
-            mean_reward = np.mean(post_train_rewards)
             print(f"Iteration {itr+1}, Mean reward: {mean_reward:.2f}")
             writer.add_scalar("Reward/Evaluation", mean_reward, itr+1)
 
@@ -241,6 +255,5 @@ def main():
 
 if __name__ == "__main__":
     print("Example usage:")
-    print("python train_gaifo.py --env halfcheetah --iterations 300 --seed 42")
+    print("python train_gaifo.py --env halfcheetah --iterations 50 --seed 42")
     main()
-    

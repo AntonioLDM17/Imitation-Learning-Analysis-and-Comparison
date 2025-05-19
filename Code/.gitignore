@@ -166,8 +166,12 @@ cython_debug/
 .venv_gail
 
 GAIL/logs
-sqil_sac/logs
+SQIL/logs
 DAC/logs
 AIRL/logs
 BC/logs
 BCO/logs
+GAIfO/logs
+logs
+../.venv_gail/
+../.venv_gail/

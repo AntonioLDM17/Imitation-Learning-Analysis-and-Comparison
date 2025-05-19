@@ -168,3 +168,6 @@ cython_debug/
 GAIL/logs
 sqil_sac/logs
 DAC/logs
+AIRL/logs
+BC/logs
+BCO/logs

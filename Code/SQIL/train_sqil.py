@@ -142,6 +142,7 @@ def main():
     for episode in range(1, args.episodes + 1):
         state, _ = env.reset(seed=args.seed)
         episode_reward = 0
+        steps_this_episode = 0  # NEW: counter for steps in current episode
         for step in range(args.max_steps):
             if not discrete:
                 action = agent.select_action(state)
@@ -155,6 +156,7 @@ def main():
             state = next_state
             episode_reward += reward
             total_steps += 1
+            steps_this_episode += 1  # NEW: increment per-step counter
             if total_steps % args.update_every == 0:
                 try:
                     losses = agent.update()
@@ -174,8 +176,11 @@ def main():
                     writer.add_scalar("Loss/Alpha", alpha_loss, total_steps)
             if done or truncated:
                 break
-        print(f"Episode {episode} finished. Accumulated reward: {episode_reward}")
+        # Print summary including equivalent steps
+        print(f"Episode {episode} finished. Steps this episode: {steps_this_episode}, Total steps so far: {total_steps}. Accumulated reward: {episode_reward}")
+        # Log reward by episode and by steps
         writer.add_scalar("Reward/Episode", episode_reward, episode)
+        writer.add_scalar("Reward/Steps", episode_reward, total_steps)  # NEW: reward vs. global steps
     elapsed = time.time() - start_time
     print(f"Training completed in {elapsed:.2f} seconds.")
     

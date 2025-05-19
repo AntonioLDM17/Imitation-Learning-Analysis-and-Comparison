@@ -29,14 +29,16 @@ class InverseDynamicsModel(nn.Module):
     def __init__(self, obs_dim, action_dim, discrete=True):
         super(InverseDynamicsModel, self).__init__()
         self.discrete = discrete
-        hidden_size = 64
+        # bco.py  InverseDynamicsModel
+        hidden_size = 256          # before 64
         self.net = nn.Sequential(
-            nn.Linear(obs_dim * 2, hidden_size),
-            nn.ReLU(),
+            nn.Linear(obs_dim*2, hidden_size),
+            nn.ReLU(), nn.LayerNorm(hidden_size),
             nn.Linear(hidden_size, hidden_size),
-            nn.ReLU(),
+            nn.ReLU(), nn.LayerNorm(hidden_size),
             nn.Linear(hidden_size, action_dim)
         )
+
         
     def forward(self, s, s_next):
         x = torch.cat([s, s_next], dim=1)

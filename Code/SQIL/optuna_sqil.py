@@ -23,8 +23,8 @@ from torch.utils.tensorboard import SummaryWriter
 # Set ENV_NAME to either "HalfCheetah-v4" (continuous) or "CartPole-v1" (discrete)
 # ENV_NAME = "CartPole-v1"  
 ENV_NAME = "HalfCheetah-v4"
-TRAIN_EPISODES = 5
-EVAL_EPISODES = 5
+TRAIN_EPISODES = 500
+EVAL_EPISODES = 50
 
 
 def one_hot(action, num_actions):

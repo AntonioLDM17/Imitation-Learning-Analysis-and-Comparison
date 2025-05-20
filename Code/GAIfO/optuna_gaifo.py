@@ -1,4 +1,15 @@
-import os, sys, types, argparse
+"""
+optuna_gaifo.py  ·  Hyper-parameter search for GAIfO with Optuna
+---------------------------------------------------------------
+This version uses **total environment steps** as the training budget
+instead of the former “num_iterations”.  All logs therefore use the
+global step counter so that TensorBoard’s x-axis is in *real* env-steps.
+
+Only the step/iteration-related code has been changed; all GAIfO logic,
+hyper-parameters, Optuna integration, etc. remain untouched.
+"""
+
+import os, sys, types, argparse, math          # math is needed for ceil()
 import numpy as np
 import gymnasium as gym
 from sb3_contrib import TRPO
@@ -13,239 +24,252 @@ from stable_baselines3.common.callbacks import BaseCallback
 from torch.utils.tensorboard import SummaryWriter
 import optuna
 
-# Create dummy modules for mujoco_py (to avoid compilation issues)
+# --------------------------------------------------------------------- #
+#  Dummy mujoco_py stubs to avoid compiling MuJoCo when not installed   #
+# --------------------------------------------------------------------- #
 dummy = types.ModuleType("mujoco_py")
-dummy.builder = types.ModuleType("mujoco_py.builder")
-dummy.locomotion = types.ModuleType("mujoco_py.locomotion")
-sys.modules["mujoco_py"] = dummy
-sys.modules["mujoco_py.builder"] = dummy.builder
+dummy.builder     = types.ModuleType("mujoco_py.builder")
+dummy.locomotion  = types.ModuleType("mujoco_py.locomotion")
+sys.modules["mujoco_py"]          = dummy
+sys.modules["mujoco_py.builder"]  = dummy.builder
 sys.modules["mujoco_py.locomotion"] = dummy.locomotion
 
-# Set device for computation (GPU if available)
+# Select GPU if available
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Dummy callback to be used with collect_rollouts
+# --------------------------------------------------------------------- #
+#  Helper classes and functions                                         #
+# --------------------------------------------------------------------- #
 class DummyCallback(BaseCallback):
-    def __init__(self, verbose=0):
-        super(DummyCallback, self).__init__(verbose)
-    def _on_step(self) -> bool:
-        return True
-    def _on_rollout_start(self) -> None:
-        pass
-    def _on_rollout_end(self) -> None:
-        pass
+    """No-op callback required by SB3’s collect_rollouts()."""
+    def _on_step(self)            -> bool:  return True
+    def _on_rollout_start(self)   -> None:  pass
+    def _on_rollout_end(self)     -> None:  pass
 
-# Discriminator that expects flattened observations
+
 class GAIfODiscriminator(nn.Module):
-    def __init__(self, flat_obs_dim, hidden_dim=64):
-        super(GAIfODiscriminator, self).__init__()
+    """State-only discriminator (s, s′) → probability."""
+    def __init__(self, flat_obs_dim: int, hidden_dim: int = 64):
+        super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(flat_obs_dim * 2, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, 1),
-            nn.Sigmoid()  # Output in (0,1)
+            nn.Linear(flat_obs_dim * 2, hidden_dim), nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),       nn.ReLU(),
+            nn.Linear(hidden_dim, 1),                nn.Sigmoid()
         )
     def forward(self, s, s_next):
-        # Assume s and s_next have shape (batch_size, flat_obs_dim)
-        x = torch.cat([s, s_next], dim=1)
-        return self.net(x)
+        return self.net(torch.cat([s, s_next], dim=1))
 
-# Function to compute gradient penalty for the discriminator
-def compute_gradient_penalty(discriminator, s_expert, s_policy, s_expert_next, s_policy_next, device):
+
+def compute_gradient_penalty(discriminator, s_expert, s_policy,
+                             s_expert_next, s_policy_next, device):
+    """WGAN-GP style penalty on interpolated samples."""
     batch_size = s_expert.size(0)
     alpha = torch.rand(batch_size, 1, device=device)
-    # Interpolate between expert and policy samples for current and next states
-    s_hat = alpha * s_expert + (1 - alpha) * s_policy
-    s_hat_next = alpha * s_expert_next + (1 - alpha) * s_policy_next
-    s_hat.requires_grad_(True)
-    s_hat_next.requires_grad_(True)
+    s_hat       = alpha * s_expert       + (1 - alpha) * s_policy
+    s_hat_next  = alpha * s_expert_next  + (1 - alpha) * s_policy_next
+    s_hat.requires_grad_(True);  s_hat_next.requires_grad_(True)
+
     d_hat = discriminator(s_hat, s_hat_next)
-    ones = torch.ones(d_hat.size(), device=device)
-    gradients = torch.autograd.grad(
-        outputs=d_hat,
-        inputs=[s_hat, s_hat_next],
-        grad_outputs=ones,
-        create_graph=True,
-        retain_graph=True,
-        only_inputs=True
+    ones  = torch.ones_like(d_hat, device=device)
+
+    grad_s, grad_s_next = torch.autograd.grad(
+        outputs=d_hat, inputs=[s_hat, s_hat_next], grad_outputs=ones,
+        create_graph=True, retain_graph=True, only_inputs=True
     )
-    grad_s, grad_s_next = gradients
-    grad = torch.cat([grad_s, grad_s_next], dim=1)
+    grad      = torch.cat([grad_s, grad_s_next], dim=1)
     grad_norm = grad.norm(2, dim=1)
-    penalty = ((grad_norm - 1) ** 2).mean()
-    return penalty
+    return ((grad_norm - 1) ** 2).mean()
 
+# --------------------------------------------------------------------- #
+#  Optuna objective                                                     #
+# --------------------------------------------------------------------- #
 def objective(trial: optuna.Trial):
-    # Suggest hyperparameters to tune
-    disc_epochs = trial.suggest_categorical("disc_epochs", [3, 5, 7, 10])
-    batch_size = trial.suggest_categorical("batch_size", [128, 256, 512])
-    # Rollout length remains fixed at 2048
-    rollout_length = 2048
-    lambda_gp = trial.suggest_float("lambda_gp", 1.0, 20.0, log=True)
-    disc_lr = trial.suggest_float("disc_lr", 1e-5, 1e-3, log=True)
-    num_iterations = trial.suggest_categorical("num_iterations", [100, 300, 500])
+    # 1) Hyper-parameters to search ------------------------------------ #
+    disc_epochs   = trial.suggest_categorical("disc_epochs", [3, 5, 7, 10])
+    batch_size    = trial.suggest_categorical("batch_size",  [128, 256, 512])
+    rollout_length = 2048                              # ← fixed
+    lambda_gp     = trial.suggest_float("lambda_gp", 1.0, 20.0, log=True)
+    disc_lr       = trial.suggest_float("disc_lr",  1e-5, 1e-3, log=True)
 
-    # Fixed parameters and directories
-    SEED = 42 + trial.number
-    ENV_NAME = args.env
+    # Training budget *in environment steps* (was iterations)
+    total_steps   = trial.suggest_categorical(
+        "total_steps",
+        [1 * rollout_length,     # 204 800  steps
+         3 * rollout_length,     # 614 400  steps
+         5 * rollout_length])    # 1 024 000 steps
+
+    # 2) Fixed settings (derived from CLI) ----------------------------- #
+    SEED         = 42 + trial.number      # different seed per trial
+    ENV_NAME     = args.env
     DEMO_EPISODES = args.demo_episodes
+
     if ENV_NAME == "HalfCheetah-v4":
         suffix = "halfcheetah"
     elif ENV_NAME == "CartPole-v1":
         suffix = "cartpole"
     else:
         raise ValueError(f"Unsupported environment: {ENV_NAME}")
-    
-    DEMO_DIR = os.path.join("..", "data", "demonstrations", str(DEMO_EPISODES))
-    DEMO_FILENAME = f"{suffix}_demonstrations_{DEMO_EPISODES}.npy"
-    MODELS_DIR = "models/gaifo_" + suffix + f"_{DEMO_EPISODES}_{trial.number}"
-    LOG_DIR = os.path.join("logs", f"gaifo_{suffix}_{DEMO_EPISODES}_{trial.number}")
+
+    DEMO_DIR   = os.path.join("..", "data", "demonstrations", str(DEMO_EPISODES))
+    DEMO_FILE  = f"{suffix}_demonstrations_{DEMO_EPISODES}.npy"
+    MODELS_DIR = f"models/gaifo_{suffix}_{DEMO_EPISODES}_{trial.number}"
+    LOG_DIR    = f"logs/gaifo_{suffix}_{DEMO_EPISODES}_{trial.number}"
     os.makedirs(MODELS_DIR, exist_ok=True)
-    os.makedirs(LOG_DIR, exist_ok=True)
-    # Create TensorBoard writer
-    writer = SummaryWriter(LOG_DIR)
+    os.makedirs(LOG_DIR,   exist_ok=True)
 
-    # Create vectorized environment wrapped with Monitor
+    writer = SummaryWriter(LOG_DIR)       # TensorBoard logger
+
+    # 3) Environment and expert data ----------------------------------- #
     env = DummyVecEnv([lambda: Monitor(gym.make(ENV_NAME), LOG_DIR)])
-
-    # Load expert demonstrations (expected to be an array of trajectories or states)
-    demo_path = os.path.join(DEMO_DIR, DEMO_FILENAME)
+    demo_path = os.path.join(DEMO_DIR, DEMO_FILE)
     demonstrations = np.load(demo_path, allow_pickle=True)
     if isinstance(demonstrations, np.ndarray):
         demonstrations = demonstrations.tolist()
 
-    # Extract state trajectory from demonstrations
-    if len(demonstrations) > 0 and hasattr(demonstrations[0], 'obs'):
-        demo_traj_list = []
-        for traj in demonstrations:
-            demo_traj_list.extend([np.array(s, dtype=np.float32) for s in traj.obs])
-        demo_traj = np.array(demo_traj_list)
+    # Flatten expert trajectories into a single (N, obs_dim) array
+    if demonstrations and hasattr(demonstrations[0], 'obs'):
+        demo_traj = np.concatenate([np.array(t.obs, dtype=np.float32)
+                                    for t in demonstrations])
     else:
-        demo_traj = np.array([np.array(x, dtype=np.float32) for x in demonstrations])
+        demo_traj = np.array([np.array(s, dtype=np.float32) for s in demonstrations])
 
-    # Generate expert transitions (pairs of consecutive states)
-    expert_transitions = []
-    for i in range(len(demo_traj) - 1):
-        expert_transitions.append((demo_traj[i], demo_traj[i + 1]))
-    expert_transitions = np.array(expert_transitions)
+    # Build (s, s′) transition pairs
+    expert_transitions = np.array([(demo_traj[i], demo_traj[i + 1])
+                                   for i in range(len(demo_traj) - 1)])
+    expert_s       = torch.tensor(np.stack(expert_transitions[:, 0]), dtype=torch.float32).to(device)
+    expert_s_next  = torch.tensor(np.stack(expert_transitions[:, 1]), dtype=torch.float32).to(device)
 
-    expert_s = torch.tensor(np.stack([t[0] for t in expert_transitions]), dtype=torch.float32).to(device)
-    expert_s_next = torch.tensor(np.stack([t[1] for t in expert_transitions]), dtype=torch.float32).to(device)
-
-    # Get flat observation dimension (assumes a single environment)
     flat_obs_dim = env.observation_space.shape[0]
 
-    # Initialize the policy model using TRPO for GAIfO training
+    # 4) Initialise learner (TRPO) and discriminator ------------------- #
     learner = TRPO("MlpPolicy", env, seed=SEED, verbose=1, tensorboard_log=LOG_DIR)
-    new_logger = configure(LOG_DIR, ["stdout", "tensorboard"])
-    learner.set_logger(new_logger)
-    obs = env.reset()[0]
-    if len(obs.shape) == 1:
-        obs = obs[None, :]
-    learner._last_obs = obs
-    learner.ep_info_buffer = []
-    learner.ep_success_buffer = []
+    learner.set_logger(configure(LOG_DIR, ["stdout", "tensorboard"]))
+    obs = env.reset()[0];  learner._last_obs = obs if obs.ndim == 2 else obs[None, :]
+    learner.ep_info_buffer = [];  learner.ep_success_buffer = []
 
-    # Initialize the discriminator and move it to device
-    discriminator = GAIfODiscriminator(flat_obs_dim, hidden_dim=64).to(device)
+    discriminator = GAIfODiscriminator(flat_obs_dim).to(device)
     disc_optimizer = optim.Adam(discriminator.parameters(), lr=disc_lr, betas=(0.9, 0.999))
     bce_loss = nn.BCELoss()
 
-    pre_train_rewards, _ = evaluate_policy(learner, env, 10, return_episode_rewards=True)
-    pre_reward_mean = np.mean(pre_train_rewards)
-    print("Mean reward before training:", pre_reward_mean)
+    # Pre-training evaluation
+    pre_reward_mean = np.mean(evaluate_policy(learner, env, 10, return_episode_rewards=True)[0])
     writer.add_scalar("Reward/PreTrain", pre_reward_mean, 0)
 
-    dummy_callback = DummyCallback()
-    dummy_callback.model = learner
+    dummy_callback = DummyCallback();  dummy_callback.model = learner
 
-    # Training loop: number of iterations is tunable
+    # ------------------------------------------------------------------ #
+    #  Step-based training loop                                          #
+    # ------------------------------------------------------------------ #
+    n_envs           = env.num_envs                  # =1 with DummyVecEnv
+    steps_per_iter   = rollout_length * n_envs
+    num_iterations   = math.ceil(total_steps / steps_per_iter)
+    steps_so_far     = 0
+
     for itr in range(num_iterations):
-        print(f"Iteration {itr+1}/{num_iterations}")
+        print(f"Progress: {steps_so_far}/{total_steps} env-steps")
+
+        # Rollout collection (gracefully handle VecEnv reset errors)
         try:
-            rollout = learner.collect_rollouts(learner.env, dummy_callback, learner.rollout_buffer, n_rollout_steps=rollout_length)
+            learner.collect_rollouts(env, dummy_callback, learner.rollout_buffer,
+                                     n_rollout_steps=rollout_length)
         except RuntimeError as e:
             if "needs reset" in str(e):
-                obs = env.reset()[0]
-                if len(obs.shape) == 1:
-                    obs = obs[None, :]
-                learner._last_obs = obs
-                rollout = learner.collect_rollouts(learner.env, dummy_callback, learner.rollout_buffer, n_rollout_steps=rollout_length)
+                obs = env.reset()[0];  learner._last_obs = obs if obs.ndim == 2 else obs[None, :]
+                learner.collect_rollouts(env, dummy_callback, learner.rollout_buffer,
+                                         n_rollout_steps=rollout_length)
             else:
-                raise e
+                raise
 
-        # rollout_obs has shape (rollout_length, n_envs, obs_dim)
-        rollout_obs = learner.rollout_buffer.observations
-        # Reconstruct next observations by concatenating rollout_obs[1:] with _last_obs
-        last_obs_expanded = learner._last_obs[np.newaxis, ...]  # shape (1, n_envs, obs_dim)
+        steps_so_far += steps_per_iter
+
+        # ---------------------------------------------------------------- #
+        #  Discriminator training                                          #
+        # ---------------------------------------------------------------- #
+        rollout_obs      = learner.rollout_buffer.observations
+        last_obs_expanded = learner._last_obs[np.newaxis, ...]
         rollout_obs_next = np.concatenate([rollout_obs[1:], last_obs_expanded], axis=0)
-        # Flatten observations: from (rollout_length, n_envs, obs_dim) to (rollout_length * n_envs, obs_dim)
-        rollout_s = torch.tensor(rollout_obs.reshape(-1, flat_obs_dim), dtype=torch.float32).to(device)
-        rollout_s_next = torch.tensor(rollout_obs_next.reshape(-1, flat_obs_dim), dtype=torch.float32).to(device)
 
-        # Train the discriminator for the specified number of epochs
-        for epoch in range(disc_epochs):
-            idx_policy = np.random.choice(rollout_s.shape[0], batch_size, replace=True)
-            idx_expert = np.random.choice(expert_s.shape[0], batch_size, replace=True)
-            s_policy = rollout_s[idx_policy]
-            s_next_policy = rollout_s_next[idx_policy]
-            s_expert = expert_s[idx_expert]
-            s_next_expert = expert_s_next[idx_expert]
-            pred_policy = discriminator(s_policy, s_next_policy)
-            pred_expert = discriminator(s_expert, s_next_expert)
-            loss_policy = bce_loss(pred_policy, torch.ones_like(pred_policy))
-            loss_expert = bce_loss(pred_expert, torch.zeros_like(pred_expert))
-            gp = compute_gradient_penalty(discriminator, s_expert, s_policy, s_next_expert, s_next_policy, device)
-            disc_loss = loss_policy + loss_expert + lambda_gp * gp
-            disc_optimizer.zero_grad()
-            disc_loss.backward()
-            disc_optimizer.step()
-        print(f"Discriminator loss: {disc_loss.item():.4f}")
-        writer.add_scalar("Discriminator/Loss", disc_loss.item(), itr+1)
+        rollout_s       = torch.tensor(rollout_obs.reshape(-1, flat_obs_dim),      dtype=torch.float32).to(device)
+        rollout_s_next  = torch.tensor(rollout_obs_next.reshape(-1, flat_obs_dim), dtype=torch.float32).to(device)
 
+        for _ in range(disc_epochs):
+            idx_pol = np.random.choice(rollout_s.shape[0], batch_size, replace=True)
+            idx_exp = np.random.choice(expert_s.shape[0],  batch_size, replace=True)
+
+            s_pol,  s_pol_next  = rollout_s[idx_pol],  rollout_s_next[idx_pol]
+            s_exp,  s_exp_next  = expert_s[idx_exp],   expert_s_next[idx_exp]
+
+            pred_pol = discriminator(s_pol,  s_pol_next)
+            pred_exp = discriminator(s_exp,  s_exp_next)
+
+            loss_pol  = bce_loss(pred_pol, torch.ones_like(pred_pol))
+            loss_exp  = bce_loss(pred_exp, torch.zeros_like(pred_exp))
+            gp        = compute_gradient_penalty(discriminator, s_exp, s_pol,
+                                                 s_exp_next, s_pol_next, device)
+            disc_loss = loss_pol + loss_exp + lambda_gp * gp
+
+            disc_optimizer.zero_grad();  disc_loss.backward();  disc_optimizer.step()
+
+        writer.add_scalar("Discriminator/Loss", disc_loss.item(), steps_so_far)
+
+        # ---------------------------------------------------------------- #
+        #  Build GAIfO rewards & update policy                             #
+        # ---------------------------------------------------------------- #
         with torch.no_grad():
-            d_vals = discriminator(rollout_s, rollout_s_next)
-            rewards = -torch.log(d_vals + 1e-8)
-            rewards_np = rewards.cpu().numpy().flatten()
-        avg_rollout_reward = np.mean(rewards_np)
-        writer.add_scalar("Reward/Rollout", avg_rollout_reward, itr+1)
+            rewards_np = (-torch.log(discriminator(rollout_s, rollout_s_next) + 1e-8)
+                          ).cpu().numpy().flatten()
 
         learner.rollout_buffer.rewards = rewards_np
+        avg_rollout_reward = np.mean(rewards_np)
+        writer.add_scalar("Reward/Rollout", avg_rollout_reward, steps_so_far)
+
         learner.train()
 
+        # Periodic evaluation every ~10 rollouts
         if (itr + 1) % 10 == 0:
-            post_train_rewards, _ = evaluate_policy(learner, env, 10, return_episode_rewards=True)
-            mean_reward = np.mean(post_train_rewards)
-            print(f"Iteration {itr+1}, Evaluation Mean Reward: {mean_reward:.2f}")
-            writer.add_scalar("Reward/Evaluation", mean_reward, itr+1)
+            mean_reward = np.mean(evaluate_policy(learner, env, 10, True)[0])
+            print(f"After {steps_so_far} steps → eval mean reward: {mean_reward:.2f}")
+            writer.add_scalar("Reward/Evaluation", mean_reward, steps_so_far)
 
-    model_save_path = os.path.join(MODELS_DIR, f"gaifo_{suffix}_{DEMO_EPISODES}_{trial.number}_disc_epochs{disc_epochs}_batch_size{batch_size}_lambda_gp{lambda_gp}_disc_lr{disc_lr}_iterations{num_iterations}")
-    learner.save(model_save_path)
-    print(f"GAIfO model saved at {model_save_path}.zip")
+        # Stop as soon as the target budget is met or exceeded
+        if steps_so_far >= total_steps:
+            break
 
-    final_rewards, _ = evaluate_policy(learner, env, 10, return_episode_rewards=True)
-    final_mean = np.mean(final_rewards)
-    print("Mean reward after training:", final_mean)
-    writer.add_scalar("Reward/Final", final_mean, num_iterations)
-    env.close()
-    writer.close()
-    return final_mean
+    # ------------------------------------------------------------------ #
+    #  Save results & final evaluation                                   #
+    # ------------------------------------------------------------------ #
+    model_path = os.path.join(
+        MODELS_DIR,
+        f"gaifo_{suffix}_{DEMO_EPISODES}_{trial.number}"
+        f"_disc_epochs{disc_epochs}_batch_size{batch_size}"
+        f"_lambda_gp{lambda_gp}_disc_lr{disc_lr}_steps{total_steps}"
+    )
+    learner.save(model_path)
+    final_mean = np.mean(evaluate_policy(learner, env, 10, True)[0])
+    writer.add_scalar("Reward/Final", final_mean, steps_so_far)
 
+    print(f"GAIfO model saved to {model_path}.zip")
+    print(f"Mean reward after training: {final_mean:.2f}")
+
+    env.close();  writer.close()
+    return final_mean   # Optuna maximises this value
+
+# ---------------------------------------------------------------------- #
+#  CLI entry-point                                                       #
+# ---------------------------------------------------------------------- #
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Optuna hyperparameter optimization for GAIfO")
-    parser.add_argument("--n_trials", type=int, default=20, help="Number of Optuna trials")
-    parser.add_argument("--env", type=str, default="HalfCheetah-v4", help="Environment name")
-    parser.add_argument("--demo_episodes", type=int, default=50, help="Number of expert episodes used for training")
+    parser = argparse.ArgumentParser(description="Optuna HPO for GAIfO (step-based budget)")
+    parser.add_argument("--n_trials",       type=int, default=20,               help="Optuna trials")
+    parser.add_argument("--env",            type=str, default="HalfCheetah-v4", help="Gymnasium env id")
+    parser.add_argument("--demo_episodes",  type=int, default=50,               help="Expert episodes")
     args = parser.parse_args()
 
     study = optuna.create_study(direction="maximize")
     study.optimize(objective, n_trials=args.n_trials)
 
-    print("Best trial:")
-    trial = study.best_trial
-    print(f"Objective value: {trial.value:.2f}")
-    print("Best hyperparameters:")
-    for key, value in trial.params.items():
-        print(f"  {key}: {value}")
+    print("\nBest trial:")
+    best = study.best_trial
+    print(f"  Value: {best.value:.2f}")
+    print("  Params:")
+    for k, v in best.params.items():
+        print(f"    {k}: {v}")

@@ -68,8 +68,8 @@ def main():
     # Define directories and names using the centralized "data/experts" folder
     EXPERT_MODEL_DIR = os.path.join("data", "experts")
     os.makedirs(EXPERT_MODEL_DIR, exist_ok=True)
-    EXPERT_MODEL_NAME = f"{args.env}_expert_{args.policy}"
-    log_dir = os.path.join("logs", f"expert_{args.env}_{args.policy}")
+    EXPERT_MODEL_NAME = f"{args.env}_expert_{args.policy}_{TOTAL_TIMESTEPS}"
+    log_dir = os.path.join("logs", f"expert_{args.env}_{args.policy}_{TOTAL_TIMESTEPS}")
 
     # Create a vectorized environment with RolloutInfoWrapper
     env = make_vec_env(

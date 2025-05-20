@@ -36,6 +36,12 @@ def main():
         help="Expert policy algorithm used: ppo, trpo, or sac"
     )
     parser.add_argument(
+        "--timesteps",
+        type=int,
+        default=1000000,
+        help="Timestep limit for training the expert"
+    )
+    parser.add_argument(
         "--num_episodes",
         type=int,
         default=60,
@@ -58,23 +64,31 @@ def main():
         ENV_NAME = "HalfCheetah-v4"
     else:
         raise ValueError("The --env parameter must be 'cartpole' or 'halfcheetah'.")
+    
+    TIMESTEPS_TRAINED = args.timesteps
+    EPISODES = args.num_episodes
 
     # Build expert model path using the centralized "data/experts" folder.
     # Do not include the ".zip" extension (SB3.load adds it automatically).
     if args.env == "cartpole":
         if args.policy.lower() == "trpo":
-            EXPERT_MODEL_PATH = os.path.join("data", "experts", "cartpole_expert_trpo")
+            name = f"cartpole_expert_trpo_{TIMESTEPS_TRAINED}"
+            EXPERT_MODEL_PATH = os.path.join("data", "experts", name)
         elif args.policy.lower() == "ppo":
-            EXPERT_MODEL_PATH = os.path.join("data", "experts", "cartpole_expert_ppo")
+            name = f"cartpole_expert_ppo_{TIMESTEPS_TRAINED}"
+            EXPERT_MODEL_PATH = os.path.join("data", "experts", name)
         else:
             raise ValueError("For CartPole, use 'ppo' or 'trpo' since SAC is not compatible with discrete actions.")
     elif args.env == "halfcheetah":
         if args.policy.lower() == "sac":
-            EXPERT_MODEL_PATH = os.path.join("data", "experts", "halfcheetah_expert_sac")
+            name = f"halfcheetah_expert_sac_{TIMESTEPS_TRAINED}"
+            EXPERT_MODEL_PATH = os.path.join("data", "experts", name)
         elif args.policy.lower() == "trpo":
-            EXPERT_MODEL_PATH = os.path.join("data", "experts", "halfcheetah_expert_trpo")
+            name = f"halfcheetah_expert_trpo_{TIMESTEPS_TRAINED}"
+            EXPERT_MODEL_PATH = os.path.join("data", "experts", name)
         elif args.policy.lower() == "ppo":
-            EXPERT_MODEL_PATH = os.path.join("data", "experts", "halfcheetah_expert_ppo")
+            name = f"halfcheetah_expert_ppo_{TIMESTEPS_TRAINED}"
+            EXPERT_MODEL_PATH = os.path.join("data", "experts", name)
         else:
             raise ValueError("Unsupported policy for halfcheetah.")
     else:
@@ -86,8 +100,8 @@ def main():
         raise FileNotFoundError(f"Expert model file not found at {expert_full_path}")
 
     # Set demonstrations directory (centralized in "data/demonstrations")
-    DEMO_DIR = os.path.join("data", "demonstrations")
-    DEMO_FILENAME = f"{args.env}_demonstrations.npy"
+    DEMO_DIR = os.path.join("data", "demonstrations", str(EPISODES))
+    DEMO_FILENAME = f"{args.env}_demonstrations_{EPISODES}.npy"
     os.makedirs(DEMO_DIR, exist_ok=True)
 
     # Create a vectorized environment
@@ -139,5 +153,5 @@ def main():
 
 if __name__ == "__main__":
     print("Usage example:")
-    print("python generate_demonstrations.py --env halfcheetah --policy sac --num_episodes 100 --seed 42")
+    print("python generate_demonstrations.py --env halfcheetah --policy sac --timesteps 2000000 --num_episodes 100 --seed 42")
     main()

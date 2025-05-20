@@ -39,6 +39,18 @@ def main():
         default=100,
         help="Number of evaluation episodes"
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed for reproducibility"
+    )
+    parser.add_argument(
+        "--timesteps",
+        type=int,
+        default=1000000,
+        help="Total timesteps for training the expert"
+    )
     args = parser.parse_args()
 
     # Determine environment name based on the argument
@@ -51,7 +63,7 @@ def main():
 
     # Build expert model path using the centralized folder "data/experts"
     # Do not include the ".zip" extension (SB3.load adds it automatically)
-    model_path = os.path.join("data", "experts", f"{args.env}_expert_{args.policy}")
+    model_path = os.path.join("data", "experts", f"{args.env}_expert_{args.policy}_{args.timesteps}")
 
     # Create the environment
     env = gym.make(env_name)

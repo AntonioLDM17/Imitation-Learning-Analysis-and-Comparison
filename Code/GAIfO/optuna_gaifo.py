@@ -85,11 +85,12 @@ def objective(trial: optuna.Trial):
     rollout_length = 2048
     lambda_gp = trial.suggest_float("lambda_gp", 1.0, 20.0, log=True)
     disc_lr = trial.suggest_float("disc_lr", 1e-5, 1e-3, log=True)
-    num_iterations = trial.suggest_categorical("num_iterations", [150, 300, 500])
+    num_iterations = trial.suggest_categorical("num_iterations", [100, 300, 500])
 
     # Fixed parameters and directories
     SEED = 42 + trial.number
     ENV_NAME = args.env
+    DEMO_EPISODES = args.demo_episodes
     if ENV_NAME == "HalfCheetah-v4":
         suffix = "halfcheetah"
     elif ENV_NAME == "CartPole-v1":
@@ -97,10 +98,10 @@ def objective(trial: optuna.Trial):
     else:
         raise ValueError(f"Unsupported environment: {ENV_NAME}")
     
-    DEMO_DIR = os.path.join("..", "data", "demonstrations")
-    DEMO_FILENAME = f"{suffix}_demonstrations.npy"
-    MODELS_DIR = "models"
-    LOG_DIR = os.path.join("logs", f"gaifo_{suffix}_{trial.number}")
+    DEMO_DIR = os.path.join("..", "data", "demonstrations", str(DEMO_EPISODES))
+    DEMO_FILENAME = f"{suffix}_demonstrations_{DEMO_EPISODES}.npy"
+    MODELS_DIR = "models/gaifo_" + suffix + f"_{DEMO_EPISODES}_{trial.number}"
+    LOG_DIR = os.path.join("logs", f"gaifo_{suffix}_{DEMO_EPISODES}_{trial.number}")
     os.makedirs(MODELS_DIR, exist_ok=True)
     os.makedirs(LOG_DIR, exist_ok=True)
     # Create TensorBoard writer
@@ -220,7 +221,7 @@ def objective(trial: optuna.Trial):
             print(f"Iteration {itr+1}, Evaluation Mean Reward: {mean_reward:.2f}")
             writer.add_scalar("Reward/Evaluation", mean_reward, itr+1)
 
-    model_save_path = os.path.join(MODELS_DIR, f"gaifo_{suffix}_{trial.number}_disc_epochs{disc_epochs}_batch_size{batch_size}_lambda_gp{lambda_gp}_disc_lr{disc_lr}_iterations{num_iterations}")
+    model_save_path = os.path.join(MODELS_DIR, f"gaifo_{suffix}_{DEMO_EPISODES}_{trial.number}_disc_epochs{disc_epochs}_batch_size{batch_size}_lambda_gp{lambda_gp}_disc_lr{disc_lr}_iterations{num_iterations}")
     learner.save(model_save_path)
     print(f"GAIfO model saved at {model_save_path}.zip")
 
@@ -236,6 +237,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Optuna hyperparameter optimization for GAIfO")
     parser.add_argument("--n_trials", type=int, default=20, help="Number of Optuna trials")
     parser.add_argument("--env", type=str, default="HalfCheetah-v4", help="Environment name")
+    parser.add_argument("--demo_episodes", type=int, default=50, help="Number of expert episodes used for training")
     args = parser.parse_args()
 
     study = optuna.create_study(direction="maximize")

@@ -72,6 +72,8 @@ def main():
     parser.add_argument("--max_steps", type=int, default=1000, help="Maximum steps per episode")
     parser.add_argument("--batch_size", type=int, default=256, help="Batch size for updates")
     parser.add_argument("--update_every", type=int, default=10, help="Number of steps between updates")
+    parser.add_argument("--demo_episodes", type=int, default=50,
+                        help="Number of expert episodes for training")
     args = parser.parse_args()
     
     # Set random seed
@@ -80,14 +82,14 @@ def main():
     
     # Determine subdirectories and settings based on environment
     if args.env == "HalfCheetah-v4":
-        demo_filename = "halfcheetah_demonstrations.npy"
-        model_subdir = "halfcheetah"
-        log_subdir = "halfcheetah"
+        demo_filename = f"halfcheetah_demonstrations_{args.demo_episodes}.npy"
+        model_subdir = f"halfcheetah_{args.demo_episodes}"
+        log_subdir = f"halfcheetah_{args.demo_episodes}"
         discrete = False
     elif args.env == "CartPole-v1":
-        demo_filename = "cartpole_demonstrations.npy"
-        model_subdir = "cartpole"
-        log_subdir = "cartpole"
+        demo_filename = f"cartpole_demonstrations_{args.demo_episodes}.npy"
+        model_subdir = f"cartpole_{args.demo_episodes}"
+        log_subdir = f"cartpole_{args.demo_episodes}"
         discrete = True
     else:
         raise ValueError("Unsupported environment. Use 'HalfCheetah-v4' or 'CartPole-v1'.")
@@ -121,7 +123,7 @@ def main():
     if args.demo_path is not None:
         demo_path = args.demo_path
     else:
-        demo_path = os.path.join("..", "data", "demonstrations", demo_filename)
+        demo_path = os.path.join("..", "data", "demonstrations", str(args.demo_episodes), demo_filename)
     if not os.path.exists(demo_path):
         raise FileNotFoundError(f"Demonstrations file not found at {demo_path}")
     demos = load_demonstrations(demo_path)
@@ -187,8 +189,10 @@ def main():
     # Save the trained models in the proper model subdirectory
     model_dir = os.path.join("models", model_subdir)
     os.makedirs(model_dir, exist_ok=True)
-    model_path_actor = os.path.join(model_dir, "sqil_actor.pth")
-    model_path_critic = os.path.join(model_dir, "sqil_critic.pth")
+    name_actor = f"sqil_actor_{args.env}_{args.demo_episodes}_{total_steps}.pth"
+    name_critic = f"sqil_critic_{args.env}_{args.demo_episodes}_{total_steps}.pth"
+    model_path_actor = os.path.join(model_dir, name_actor)
+    model_path_critic = os.path.join(model_dir, name_critic)
     torch.save(agent.actor.state_dict(), model_path_actor)
     torch.save(agent.critic.state_dict(), model_path_critic)
     print(f"Models saved in {model_dir}")
@@ -198,9 +202,9 @@ def main():
 
 if __name__ == "__main__":
     print("Example usage for HalfCheetah:")
-    print("python train_sqil.py --env HalfCheetah-v4 --demo_path ../data/demonstrations/halfcheetah_demonstrations.npy --seed 42 --episodes 1000")
+    print("python train_sqil.py --env HalfCheetah-v4 --demo_path ../data/demonstrations/halfcheetah_demonstrations.npy --seed 42 --episodes 1000 --demo_episodes 50")
     print("Example usage for CartPole:")
-    print("python train_sqil.py --env CartPole-v1 --demo_path ../data/demonstrations/cartpole_demonstrations.npy --seed 42 --episodes 350")
+    print("python train_sqil.py --env CartPole-v1 --demo_path ../data/demonstrations/cartpole_demonstrations.npy --seed 42 --episodes 350 --demo_episodes 50")
     print("To view the training process, run:")
     print("tensorboard --logdir logs")
     main()

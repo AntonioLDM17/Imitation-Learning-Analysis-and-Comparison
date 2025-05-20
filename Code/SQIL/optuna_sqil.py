@@ -23,8 +23,8 @@ from torch.utils.tensorboard import SummaryWriter
 # Set ENV_NAME to either "HalfCheetah-v4" (continuous) or "CartPole-v1" (discrete)
 # ENV_NAME = "CartPole-v1"  
 ENV_NAME = "HalfCheetah-v4"
-TRAIN_EPISODES = 500
-EVAL_EPISODES = 50
+TRAIN_EPISODES = 5
+EVAL_EPISODES = 5
 
 
 def one_hot(action, num_actions):
@@ -93,14 +93,14 @@ def objective(trial: optuna.Trial):
 
     # Determine subdirectories based on ENV_NAME
     if ENV_NAME == "HalfCheetah-v4":
-        demo_filename = "halfcheetah_demonstrations.npy"
-        log_subdir = "halfcheetah"
-        model_subdir = "halfcheetah"
+        demo_filename = f"halfcheetah_demonstrations_{args.demo_episodes}.npy"
+        log_subdir = f"halfcheetah_{args.demo_episodes}"
+        model_subdir = f"halfcheetah_{args.demo_episodes}"
         discrete = False
     elif ENV_NAME == "CartPole-v1":
-        demo_filename = "cartpole_demonstrations.npy"
-        log_subdir = "cartpole"
-        model_subdir = "cartpole"
+        demo_filename = f"cartpole_demonstrations_{args.demo_episodes}.npy"
+        log_subdir = f"cartpole_{args.demo_episodes}"
+        model_subdir = f"cartpole_{args.demo_episodes}"
         discrete = True
     else:
         raise ValueError("Unsupported ENV_NAME.")
@@ -138,7 +138,7 @@ def objective(trial: optuna.Trial):
     )
 
     # Load demonstrations
-    demo_path = os.path.join("..", "data", "demonstrations", demo_filename)
+    demo_path = os.path.join("..", "data", "demonstrations", str(args.demo_episodes), demo_filename)
     if not os.path.exists(demo_path):
         raise FileNotFoundError(f"Demonstration file not found at {demo_path}")
     demos = load_demonstrations(demo_path)
@@ -205,7 +205,7 @@ def objective(trial: optuna.Trial):
     model_dir = os.path.join("models", model_subdir)
     os.makedirs(model_dir, exist_ok=True)
     model_name = (
-        f"sqil_actor_lr{actor_lr:.0e}_critic_lr{critic_lr:.0e}_alpha_lr{alpha_lr:.0e}_"
+        f"sqil_{args.demo_episodes}__actor_lr{actor_lr:.0e}_critic_lr{critic_lr:.0e}_alpha_lr{alpha_lr:.0e}_"
         f"bs{batch_size}_upd{update_every}_ms{max_steps}.pth"
     )
     actor_save_path = os.path.join(model_dir, model_name)
@@ -250,6 +250,7 @@ def objective(trial: optuna.Trial):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Optuna hyperparameter optimization for SQILAgent")
     parser.add_argument("--n_trials", type=int, default=20, help="Number of Optuna trials")
+    parser.add_argument("--demo_episodes", type=int, default=50, help="Number of demonstration episodes")
     args = parser.parse_args()
 
     study = optuna.create_study(direction="maximize")

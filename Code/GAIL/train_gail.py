@@ -41,6 +41,8 @@ def main():
                         help="Random seed")
     parser.add_argument("--policy", choices=["ppo","trpo","sac"], default="trpo",
                         help="Expert policy algorithm to use for demonstrations")
+    parser.add_argument("--demo_episodes", type=int, default=50,
+                        help="Number of expert episodes for training")
     args = parser.parse_args()
 
     SEED = args.seed
@@ -48,10 +50,10 @@ def main():
 
     # Paths
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    DEMO_DIR = os.path.join(BASE_DIR, "..", "data", "demonstrations")
-    DEMO_FILE = f"{args.env}_demonstrations.npy"
-    MODELS_DIR = os.path.join(BASE_DIR, "models")
-    LOG_DIR = os.path.join(BASE_DIR, "logs", f"gail_{args.env}")
+    DEMO_DIR = os.path.join(BASE_DIR, "..", "data", "demonstrations", str(args.demo_episodes))
+    DEMO_FILE = f"{args.env}_demonstrations_{args.demo_episodes}.npy"
+    MODELS_DIR = os.path.join(BASE_DIR, f"models/gail_{args.env}_{args.demo_episodes}")
+    LOG_DIR = os.path.join(BASE_DIR, "logs", f"gail_{args.env}_{args.demo_episodes}")
     os.makedirs(MODELS_DIR, exist_ok=True)
     os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -149,11 +151,12 @@ def main():
     writer.close()
 
     # Save models
-    learner.save(os.path.join(MODELS_DIR, f"gail_{args.env}"))
+    learner.save(os.path.join(MODELS_DIR, f"gail_{args.env}_{args.timesteps}"))
+    torch.save(reward_net.state_dict(), os.path.join(MODELS_DIR, f"gail_reward_{args.env}_{args.timesteps}.pth"))
     env.close()
 
 
 if __name__ == "__main__":
-    print("Example usage: python train_gail.py --env cartpole --timesteps 200000 --seed 42")
+    print("Example usage: python train_gail.py --env cartpole --timesteps 200000 --seed 42 --demo_episodes 50")
     print("To monitor: tensorboard --logdir logs")
     main()

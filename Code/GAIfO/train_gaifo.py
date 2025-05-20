@@ -119,6 +119,7 @@ def main() -> None:
         help="Total environment interaction steps to train.",
     )
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--demo-episodes", type=int, default=50, help="Number of expert episodes to use for training")
     args = parser.parse_args()
 
     # ------------------------------------------------------------------
@@ -131,10 +132,10 @@ def main() -> None:
     else:
         raise ValueError("Unsupported environment.")
 
-    DEMO_DIR = os.path.join("..", "data", "demonstrations")
-    DEMO_FILENAME = f"{args.env}_demonstrations.npy"
-    MODELS_DIR = "models"
-    LOG_DIR = os.path.join("logs", f"gaifo_{args.env}")
+    DEMO_DIR = os.path.join("..", "data", "demonstrations", str(args.demo_episodes))
+    DEMO_FILENAME = f"{args.env}_demonstrations_{args.demo_episodes}.npy"
+    MODELS_DIR = f"models/gaifo_{args.env}_{args.demo_episodes}"
+    LOG_DIR = os.path.join("logs", f"gaifo_{args.env}_{args.demo_episodes}")
     os.makedirs(MODELS_DIR, exist_ok=True)
     os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -267,7 +268,7 @@ def main() -> None:
     # ------------------------------------------------------------------
     # Save & final evaluation
     # ------------------------------------------------------------------
-    model_path = os.path.join(MODELS_DIR, f"gaifo_{args.env}")
+    model_path = os.path.join(MODELS_DIR, f"gaifo_{args.env}_{total_steps_so_far}")
     learner.save(model_path)
     print(f"GAIfO model saved at {model_path}.zip")
 
@@ -278,4 +279,6 @@ def main() -> None:
     env.close(); writer.close()
 
 if __name__ == "__main__":
+    print("Example usage:")
+    print("python train_gaifo.py --env halfcheetah --steps 1000000 --seed 42 --demo-episodes 50")
     main()

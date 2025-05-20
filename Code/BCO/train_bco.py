@@ -1,3 +1,13 @@
+""" 
+Credits to:
+@inproceedings{torabi2018bco,
+  author = {Faraz Torabi and Garrett Warnell and Peter Stone}, 
+  title = {{Behavioral Cloning from Observation}}, 
+  booktitle = {International Joint Conference on Artificial Intelligence (IJCAI)}, 
+  year = {2018} 
+}
+Where the code is based on the original BCO implementation by Faraz Torabi.
+"""
 import os
 import argparse
 import types
@@ -69,6 +79,8 @@ def main():
     parser.add_argument("--demo_file", type=str, default=None,
                         help="Path to .npy demonstrations")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--demo_episodes", type=int, default=50,
+                        help="Number of expert episodes for training")
 
     # Training hyper-parameters
     parser.add_argument("--inv_epochs", type=int, default=10)
@@ -101,7 +113,7 @@ def main():
     # ----------------------------------------------------------------------- #
     # TensorBoard
     # ----------------------------------------------------------------------- #
-    log_dir = f"logs/bco_{args.env}"
+    log_dir = f"logs/bco_{args.env}_{args.demo_episodes}"
     os.makedirs(log_dir, exist_ok=True)
     writer = SummaryWriter(log_dir)
 
@@ -131,8 +143,7 @@ def main():
     # ----------------------------------------------------------------------- #
     # 2) Load demonstrations & infer actions
     # ----------------------------------------------------------------------- #
-    demo_path = args.demo_file or os.path.join("..", "data", "demonstrations",
-                                               f"{args.env}_demonstrations.npy")
+    demo_path = args.demo_file or os.path.join("..", "data", "demonstrations", str(args.demo_episodes), f"{args.env}_demonstrations_{args.demo_episodes}.npy")
     print(f"Loading demonstrations from {demo_path}")
     demo = np.load(demo_path, allow_pickle=True)
 
@@ -247,9 +258,13 @@ def main():
     # ----------------------------------------------------------------------- #
     # 7) Save final policy
     # ----------------------------------------------------------------------- #
-    os.makedirs("models", exist_ok=True)
-    fname = f"bco_alpha_{args.env}.pt" if args.alpha > 0 else f"bco_{args.env}.pt"
-    torch.save(policy.state_dict(), os.path.join("models", fname))
+    if args.env == "cartpole":
+        name_suffix = f"bco_cartpole_{args.demo_episodes}"
+    else:
+        name_suffix = f"bco_halfcheetah_{args.demo_episodes}"
+    os.makedirs(f"models/{name_suffix}", exist_ok=True)
+    fname = f"{name_suffix}_{env_steps}_{args.alpha}.pt" if args.alpha > 0 else f"{name_suffix}_{env_steps}.pt"
+    torch.save(policy.state_dict(), os.path.join(f"models/{name_suffix}", fname))
     print(f"Saved policy to models/{fname}")
 
     writer.close()
@@ -258,7 +273,7 @@ def main():
 
 if __name__ == "__main__":
     print("Example of running normal BCO:")
-    primt(" python train_bco.py --env cartpole --pre_interactions 200 --inv_epochs 5 --policy_epochs 5 --policy_lr 3e-4  --seed 42 --eval_interval 100")
+    print(" python train_bco.py --env cartpole --pre_interactions 200 --inv_epochs 5 --policy_epochs 5 --policy_lr 3e-4  --seed 42 --eval_interval 100")
     print("Example of running BCO(alpha):")
     print("python train_bco.py --env halfcheetah --pre_interactions 20000 --inv_epochs 50 --policy_epochs 100 --policy_lr 3e-4 --alpha 0.5 --num_iterations 5 --seed 42")
     main()

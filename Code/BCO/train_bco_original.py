@@ -48,6 +48,7 @@ def main():
     parser.add_argument("--demo_file", type=str, default=None,
                         help="Path to demonstrations (npy) in data/demonstrations")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--demo_episodes", type=int, default=50, help="Number of expert episodes for training (used only if demo_file is None)")
     # Hyperparameters for inverse model training
     parser.add_argument("--inv_epochs", type=int, default=10, help="Epochs for pre-demonstration inverse model training")
     parser.add_argument("--inv_lr", type=float, default=1e-3, help="Learning rate for inverse model training")
@@ -70,7 +71,7 @@ def main():
         discrete = False
 
     # Setup TensorBoard logging
-    log_dir = os.path.join("logs", f"bco_{args.env}")
+    log_dir = os.path.join("logs", f"bco_{args.env}_{args.alpha}_{args.demo_episodes}")
     os.makedirs(log_dir, exist_ok=True)
     writer = SummaryWriter(log_dir)
 
@@ -94,8 +95,8 @@ def main():
 
     # Load demonstration data
     if args.demo_file is None:
-        demo_dir = os.path.join("..", "data", "demonstrations")
-        demo_filename = f"{args.env}_demonstrations.npy"
+        demo_dir = os.path.join("..", "data", "demonstrations", str(args.demo_episodes))
+        demo_filename = f"{args.env}_demonstrations_{args.demo_episodes}.npy"
         demo_path = os.path.join(demo_dir, demo_filename)
     else:
         demo_path = args.demo_file
@@ -183,7 +184,7 @@ def main():
                                       discrete=discrete, epochs=args.iter_policy_epochs, lr=args.policy_lr,
                                       batch_size=args.batch_size, writer=writer)
 
-    models_dir = os.path.join("models")
+    models_dir = os.path.join("models", f"bco_{args.env}_{args.alpha}_{args.demo_episodes}")
     os.makedirs(models_dir, exist_ok=True)
     if args.alpha == 0.0:
         model_name = f"bco_{args.env}.pt"
@@ -198,6 +199,6 @@ def main():
 
 if __name__ == "__main__":
     print("Example usage:")
-    print("python train_bco.py --env halfcheetah --pre_interactions 2000 --alpha 0.0 --seed 42   (for BCO(0))")
-    print("python train_bco.py --env halfcheetah --pre_interactions 2000 --alpha 0.01 --num_iterations 5 --seed 42   (for BCO(alpha))")
+    print("python train_bco.py --env halfcheetah --pre_interactions 2000 --alpha 0.0 --seed 42 --demo_episodes 50  (for BCO(0))")
+    print("python train_bco.py --env halfcheetah --pre_interactions 2000 --alpha 0.01 --num_iterations 5 --seed 42 --demo_episodes 50  (for BCO(alpha))")
     main()

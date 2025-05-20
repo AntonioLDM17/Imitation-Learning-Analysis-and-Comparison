@@ -44,6 +44,8 @@ def main():
     )
     parser.add_argument("--env", type=str, default="CartPole-v1",
                         help="Gym environment ID (e.g., 'CartPole-v1' or 'HalfCheetah-v4').")
+    parser.add_argument("--demo_episodes", type=int, default=50,
+                        help="Number of expert episodes used for training.")
     parser.add_argument("--model_path", type=str,
                         default=os.path.join("models", "bc_cartpole.pt"),
                         help="Path to the saved BC model file (zip or .pt) from train_bc.py.")

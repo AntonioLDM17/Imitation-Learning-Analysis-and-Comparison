@@ -41,6 +41,12 @@ def main():
         "--seed", type=int, default=42,
         help="Random seed"
     )
+    parser.add_argument(
+        "--demo_episodes",
+        type=int,
+        default=50,
+        help="Number of expert episodes for training"
+    )
     args = parser.parse_args()
 
     # Environment and seed
@@ -49,11 +55,11 @@ def main():
 
     # Paths
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    DEMO_DIR = os.path.join(BASE_DIR, os.pardir, "data", "demonstrations")
-    DEMO_FILE = f"{args.env}_demonstrations.npy"
-    MODEL_DIR = os.path.join(BASE_DIR, "models")
-    MODEL_NAME = f"bc_{args.env}.pt"
-    LOG_DIR = os.path.join(BASE_DIR, "logs", f"bc_{args.env}")
+    DEMO_DIR = os.path.join(BASE_DIR, os.pardir, "data", "demonstrations", str(args.demo_episodes))
+    DEMO_FILE = f"{args.env}_demonstrations_{args.demo_episodes}.npy"
+    MODEL_DIR = os.path.join(BASE_DIR, "models", f"bc_{args.env}_{args.demo_episodes}")
+    MODEL_NAME = f"bc_{args.env}"
+    LOG_DIR = os.path.join(BASE_DIR, "logs", f"bc_{args.env}_{args.demo_episodes}")
     os.makedirs(MODEL_DIR, exist_ok=True)
     os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -142,6 +148,7 @@ def main():
     writer.add_scalar('evaluation/post_training_reward', mean_final, args.epochs * D)
 
     # Save model
+    MODEL_NAME = MODEL_NAME+f"_{args.epochs*D}.pt"
     model_path = os.path.join(MODEL_DIR, MODEL_NAME)
     torch.save(bc_trainer.policy.state_dict(), model_path)
     print(f"Behavioral Cloning model saved at {model_path}")
@@ -152,6 +159,6 @@ def main():
 
 
 if __name__ == "__main__":
-    print("Example: python train_bc.py --env halfcheetah --epochs 20 --seed 42")
+    print("Example: python train_bc.py --env halfcheetah --epochs 20 --seed 42 --demo_episodes 50")
     print("Monitor with: tensorboard --logdir logs")
     main()

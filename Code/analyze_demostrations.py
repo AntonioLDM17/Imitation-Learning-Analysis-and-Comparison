@@ -142,11 +142,9 @@ def main() -> None:
 if __name__ == "__main__":
     print("Example usage:")
     print(
-        "python analyze_demonstrations.py --demo_path data/demonstrations/100/halfcheetah_demonstrations.npy "
-        "--num_episodes 100 --env halfcheetah"
+        "python analyze_demonstrations.py --demo_path data/demonstrations/100/halfcheetah_demonstrations.npy --num_episodes 100 --env halfcheetah"
     )
     print(
-        "python analyze_demonstrations.py --demo_path data/demonstrations/100/cartpole_demonstrations_100.npy "
-        "--num_episodes 100 --env cartpole"
+        "python analyze_demonstrations.py --demo_path data/demonstrations/100/cartpole_demonstrations_100.npy --num_episodes 100 --env cartpole"
     )
     main()

@@ -42,6 +42,10 @@ def main():
         "--demo-batch-size", type=int, default=2048,
         help="Batch size of expert demonstrations for discriminator training"
     )
+    parser.add_argument(
+        "demo_episodes", type=int, default=50,
+        help="Number of expert episodes to use for training"
+    )
     args = parser.parse_args()
 
     SEED = args.seed
@@ -49,10 +53,11 @@ def main():
 
     # Data and output directories
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    DEMO_DIR = os.path.join(BASE_DIR, os.pardir, "data", "demonstrations")
-    DEMO_FILE = f"{args.env}_demonstrations.npy"
-    MODELS_DIR = os.path.join(BASE_DIR, "models")
-    LOG_DIR = os.path.join(BASE_DIR, "logs", f"airl_{args.env}")
+    DEMO_DIR = os.path.join(BASE_DIR, os.pardir, "data", "demonstrations", str(args.demo_episodes))
+    os.makedirs(DEMO_DIR, exist_ok=True)
+    DEMO_FILE = f"{args.env}_demonstrations_{args.demo_episodes}.npy"
+    MODELS_DIR = os.path.join(BASE_DIR, "models", f"airl_{args.env}_{args.demo_episodes}")
+    LOG_DIR = os.path.join(BASE_DIR, "logs", f"airl_{args.env}_{args.demo_episodes}")
     os.makedirs(MODELS_DIR, exist_ok=True)
     os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -125,8 +130,8 @@ def main():
     airl_trainer.train(TOTAL_TIMESTEPS)
 
     # Save trained models
-    learner.save(os.path.join(MODELS_DIR, f"airl_{args.env}"))
-    torch.save(reward_net.state_dict(), os.path.join(MODELS_DIR, f"airl_reward_{args.env}.pth"))
+    learner.save(os.path.join(MODELS_DIR, f"airl_{args.env}_{args.timesteps}"))
+    torch.save(reward_net.state_dict(), os.path.join(MODELS_DIR, f"airl_reward_{args.env}_{args.timesteps}.pth"))
 
     # Post-training evaluation
     post_rewards, _ = evaluate_policy(learner, env, 10, return_episode_rewards=True)

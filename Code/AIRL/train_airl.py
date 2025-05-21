@@ -63,8 +63,8 @@ def main():
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     DEMO_DIR = os.path.join(BASE_DIR, os.pardir, "data", "demonstrations", str(args.demo_episodes))
     DEMO_FILE = f"{args.env}_demonstrations_{args.demo_episodes}.npy"
-    MODELS_DIR = os.path.join(BASE_DIR, "models", f"airl_{args.env}_{args.demo_episodes}")
-    LOG_DIR = os.path.join(BASE_DIR, "logs", f"airl_{args.env}_{args.demo_episodes}")
+    MODELS_DIR = os.path.join(BASE_DIR, "models", f"airl_{args.env}_{args.demo_episodes}_3")
+    LOG_DIR = os.path.join(BASE_DIR, "logs", f"airl_{args.env}_{args.demo_episodes}_3")
     os.makedirs(MODELS_DIR, exist_ok=True)
     os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -90,8 +90,8 @@ def main():
         "MlpPolicy",
         env,
         batch_size=64,
-        ent_coef=0.0,
-        learning_rate=5e-4,
+        ent_coef=0.01,
+        learning_rate=1e-3, # Original 5e-4
         gamma=0.95,
         clip_range=0.1,
         vf_coef=0.1,
@@ -109,18 +109,31 @@ def main():
     il_logger = il_configure(LOG_DIR, ["stdout", "tensorboard"])
 
     # Reward network (discriminator)
+    """
     reward_net = BasicShapedRewardNet(
         observation_space=env.observation_space,
         action_space=env.action_space,
         normalize_input_layer=RunningNorm,
     )
-
+    """
+    reward_net = BasicShapedRewardNet(
+        observation_space=env.observation_space,
+        action_space=env.action_space,
+        reward_hid_sizes=(128, 128),
+        potential_hid_sizes=(128, 128, 64),
+        use_state=True,
+        use_action=True,
+        use_next_state=True,
+        use_done=False,
+        discount_factor=0.99,
+        normalize_input_layer=RunningNorm,
+    )
     # Instantiate AIRL trainer with HierarchicalLogger
     airl_trainer = AIRL(
         demonstrations=demonstrations,
         demo_batch_size=args.demo_batch_size,
-        gen_replay_buffer_capacity=512,
-        n_disc_updates_per_round=16,
+        gen_replay_buffer_capacity=1024, # Original 512
+        n_disc_updates_per_round=8, # Original 16
         venv=env,
         gen_algo=learner,
         reward_net=reward_net,
@@ -170,6 +183,7 @@ def main():
         )
         mean_eval = float(np.mean(eval_rewards))
         writer.add_scalar('evaluation/mean_reward', mean_eval, round_idx)
+        writer.add_scalar('evaluation/mean_reward_steps', mean_eval, round_idx * gen_ts)
 
     # Evaluate post-training
     post_rewards, _ = evaluate_policy(
@@ -183,13 +197,13 @@ def main():
     writer.close()
 
     # Save trained models
-    learner.save(os.path.join(MODELS_DIR, f"airl_{args.env}_{args.timesteps}"))
-    torch.save(reward_net.state_dict(), os.path.join(MODELS_DIR, f"airl_reward_{args.env}_{args.timesteps}.pth"))
+    learner.save(os.path.join(MODELS_DIR, f"airl_{args.env}_{args.timesteps}_3"))
+    torch.save(reward_net.state_dict(), os.path.join(MODELS_DIR, f"airl_reward_{args.env}_{args.timesteps}_3.pth"))
 
     env.close()
 
 
 if __name__ == "__main__":
-    print("Example: python train_airl.py --env cartpole --timesteps 2000000 --seed 42 --demo-episodes 50")
+    print("Example: python train_airl.py --env cartpole --timesteps 1000000 --seed 42 --demo-episodes 100")
     print("To monitor: tensorboard --logdir logs")
     main()

@@ -140,6 +140,7 @@ def main():
         eval_r,_ = evaluate_policy(learner, env, 10, return_episode_rewards=True)
         mean_eval = float(np.mean(eval_r))
         writer.add_scalar('evaluation/mean_reward', mean_eval, round_idx)
+        writer.add_scalar('evaluation/mean_reward_steps', mean_eval, round_idx * gen_ts)
         writer.flush()
 
     # Post-training evaluation

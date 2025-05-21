@@ -79,7 +79,7 @@ def gradient_penalty(disc, s_e, s_p, sn_e, sn_p):
 # ------------------------------------------------------------------ #
 def objective(trial: optuna.Trial):
     # Grid dimensions
-    demo_size   = trial.suggest_categorical("demo_size",   [5, 10, 15, 20, 50, 100])
+    demo_size   = trial.suggest_categorical("demo_size", [5, 10, 20, 50, 100])
     total_steps = trial.suggest_categorical("total_steps", [100_000, 250_000,
                                                             500_000, 1_000_000,
                                                             2_000_000])

@@ -119,7 +119,7 @@ def main() -> None:
         help="Total environment interaction steps to train.",
     )
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
-    parser.add_argument("--demo-episodes", type=int, default=50, help="Number of expert episodes to use for training")
+    parser.add_argument("--demo_episodes", type=int, default=50, help="Number of expert episodes to use for training")
     args = parser.parse_args()
 
     # ------------------------------------------------------------------
@@ -132,11 +132,11 @@ def main() -> None:
     else:
         raise ValueError("Unsupported environment.")
 
-    #DEMO_DIR = os.path.join("..", "data", "demonstrations", str(args.demo_episodes))
-    DEMO_DIR = os.path.join("..", "data", "demonstrations")
+    DEMO_DIR = os.path.join("..", "data", "demonstrations", str(args.demo_episodes))
+    # DEMO_DIR = os.path.join("..", "data", "demonstrations")
     DEMO_FILENAME = f"{args.env}_demonstrations_{args.demo_episodes}.npy"
-    MODELS_DIR = f"models/gaifo_{args.env}_{args.demo_episodes}_1M_steps_2"
-    LOG_DIR = os.path.join("logs", f"gaifo_{args.env}_{args.demo_episodes}_1M_steps_2")
+    MODELS_DIR = f"models/gaifo_{args.env}_{args.demo_episodes}_best_model"
+    LOG_DIR = os.path.join("logs", f"gaifo_{args.env}_{args.demo_episodes}_best_model")
     os.makedirs(MODELS_DIR, exist_ok=True)
     os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -144,6 +144,7 @@ def main() -> None:
 
     env = DummyVecEnv([lambda: Monitor(gym.make(ENV_NAME), LOG_DIR)])
     n_envs = env.num_envs  # usually 1
+    SEED = args.seed + 2
 
     # ------------------------------------------------------------------
     # Expert demonstration loading (unchanged)
@@ -163,7 +164,7 @@ def main() -> None:
 
     flat_obs_dim = env.observation_space.shape[0]
 
-    learner = TRPO("MlpPolicy", env, seed=args.seed, verbose=1, tensorboard_log=LOG_DIR)
+    learner = TRPO("MlpPolicy", env, seed=SEED, verbose=1, tensorboard_log=LOG_DIR)
     learner.set_logger(configure(LOG_DIR, ["stdout", "tensorboard"]))
 
     obs = env.reset()[0]
@@ -171,7 +172,9 @@ def main() -> None:
     learner.ep_info_buffer, learner.ep_success_buffer = [], []
 
     discriminator = GAIfODiscriminator(flat_obs_dim).to(device)
-    disc_optimizer = optim.Adam(discriminator.parameters(), lr=3.989020006157259e-05, betas=(0.9, 0.999))
+    #disc_optimizer = optim.Adam(discriminator.parameters(), lr=3.989020006157259e-05, betas=(0.9, 0.999))
+    disc_lr =5.4868671601784924e-05
+    disc_optimizer = optim.Adam(discriminator.parameters(), lr=disc_lr, betas=(0.9, 0.999))  # Adjusted learning rate
     bce_loss = nn.BCELoss()
 
     pre_reward_mean = np.mean(evaluate_policy(learner, env, n_eval_episodes=10)[0])
@@ -188,7 +191,7 @@ def main() -> None:
     total_steps_target = args.steps
     total_steps_so_far = 0
     num_iterations = math.ceil(total_steps_target / (rollout_length * n_envs))
-    gp_lambda = 1.660941233998641  # gradient‑penalty coefficient (unchanged)
+    gp_lambda = 5.165201675071828 # 1.660941233998641  # gradient‑penalty coefficient (unchanged)
 
     for itr in range(num_iterations):
         # --------------------------------------------------------------
@@ -230,7 +233,7 @@ def main() -> None:
         # --------------------------------------------------------------
         # Discriminator update
         # --------------------------------------------------------------
-        disc_epochs, batch_size = 10, 256
+        disc_epochs, batch_size = 20, 512
         for _ in range(disc_epochs):
             idx_pol = np.random.choice(len(rollout_s), batch_size)
             idx_exp = np.random.choice(len(expert_s), batch_size)
@@ -281,5 +284,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     print("Example usage:")
-    print("python train_gaifo.py --env halfcheetah --steps 1000000 --seed 42 --demo-episodes 50")
+    print("python train_gaifo.py --env halfcheetah --steps 1000000 --seed 42 --demo_episodes 50")
     main()

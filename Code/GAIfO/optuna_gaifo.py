@@ -85,10 +85,10 @@ def compute_gradient_penalty(discriminator, s_expert, s_policy,
 # --------------------------------------------------------------------- #
 def objective(trial: optuna.Trial):
     # 1) Hyper-parameters to search ------------------------------------ #
-    disc_epochs   = trial.suggest_categorical("disc_epochs", [3, 5, 7, 10])
+    disc_epochs   = trial.suggest_categorical("disc_epochs", [10, 20, 30])
     batch_size    = trial.suggest_categorical("batch_size",  [256, 512, 1024])
     rollout_length = 2048                              # ← fixed
-    lambda_gp     = trial.suggest_float("lambda_gp", 0.1, 20.0, log=True)
+    lambda_gp     = trial.suggest_float("lambda_gp", 0.3, 10, log=True)
     disc_lr       = trial.suggest_float("disc_lr",  1e-5, 1e-3, log=True)
 
     # Training budget *in environment steps* (was iterations)
@@ -97,7 +97,7 @@ def objective(trial: optuna.Trial):
         [ 489 * rollout_length])    # 1 001 472 steps
 
     # 2) Fixed settings (derived from CLI) ----------------------------- #
-    SEED         = 42
+    SEED         = 42  # + trial.number if you want to use different seeds
     ENV_NAME     = args.env
     DEMO_EPISODES = args.demo_episodes
 
@@ -110,8 +110,8 @@ def objective(trial: optuna.Trial):
 
     DEMO_DIR   = os.path.join("..", "data", "demonstrations", str(DEMO_EPISODES))
     DEMO_FILE  = f"{suffix}_demonstrations_{DEMO_EPISODES}.npy"
-    MODELS_DIR = f"models/gaifo_{suffix}_{DEMO_EPISODES}_{trial.number}"
-    LOG_DIR    = f"logs/gaifo_{suffix}_{DEMO_EPISODES}_{trial.number}"
+    MODELS_DIR = f"models/gaifo_{suffix}_{DEMO_EPISODES}_{trial.number}_exec_2"
+    LOG_DIR    = f"logs/gaifo_{suffix}_{DEMO_EPISODES}_{trial.number}_exec_2"
     os.makedirs(MODELS_DIR, exist_ok=True)
     os.makedirs(LOG_DIR,   exist_ok=True)
 

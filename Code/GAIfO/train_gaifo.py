@@ -132,10 +132,11 @@ def main() -> None:
     else:
         raise ValueError("Unsupported environment.")
 
-    DEMO_DIR = os.path.join("..", "data", "demonstrations", str(args.demo_episodes))
+    #DEMO_DIR = os.path.join("..", "data", "demonstrations", str(args.demo_episodes))
+    DEMO_DIR = os.path.join("..", "data", "demonstrations")
     DEMO_FILENAME = f"{args.env}_demonstrations_{args.demo_episodes}.npy"
-    MODELS_DIR = f"models/gaifo_{args.env}_{args.demo_episodes}"
-    LOG_DIR = os.path.join("logs", f"gaifo_{args.env}_{args.demo_episodes}")
+    MODELS_DIR = f"models/gaifo_{args.env}_{args.demo_episodes}_1M_steps_2"
+    LOG_DIR = os.path.join("logs", f"gaifo_{args.env}_{args.demo_episodes}_1M_steps_2")
     os.makedirs(MODELS_DIR, exist_ok=True)
     os.makedirs(LOG_DIR, exist_ok=True)
 

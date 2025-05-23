@@ -85,6 +85,8 @@ def main():
     parser.add_argument("--iterations", type=int, default=300,
                         help="Number of training iterations")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--demo_episodes", type=int, default=50,
+                        help="Number of expert episodes to use for training")
     args = parser.parse_args()
 
     SEED = args.seed
@@ -95,10 +97,11 @@ def main():
     else:
         raise ValueError("Invalid environment.")
 
+    # DEMO_DIR = os.path.join("..", "data", "demonstrations", str(args.demo_episodes))
     DEMO_DIR = os.path.join("..", "data", "demonstrations")
-    DEMO_FILENAME = f"{args.env}_demonstrations.npy"
-    MODELS_DIR = "models"
-    LOG_DIR = os.path.join("logs", f"gaifo_{args.env}")
+    DEMO_FILENAME = f"{args.env}_demonstrations_{args.demo_episodes}.npy"
+    MODELS_DIR = f"models/gaifo_{args.env}_{args.demo_episodes}_1M_expert_3"
+    LOG_DIR = os.path.join("logs", f"gaifo_{args.env}_{args.demo_episodes}_1M_expert_3")
     os.makedirs(MODELS_DIR, exist_ok=True)
     os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -228,7 +231,7 @@ def main():
             print(f"Iteration {itr+1}, Mean reward: {mean_reward:.2f}")
             writer.add_scalar("Reward/Evaluation", mean_reward, itr+1)
 
-    model_save_path = os.path.join(MODELS_DIR, f"gaifo_{args.env}")
+    model_save_path = os.path.join(MODELS_DIR, f"gaifo_{args.env}_{args.demo_episodes}_{num_iterations}")
     learner.save(model_save_path)
     print(f"GAIfO model saved at {model_save_path}.zip")
 
@@ -241,6 +244,6 @@ def main():
 
 if __name__ == "__main__":
     print("Example usage:")
-    print("python train_gaifo.py --env halfcheetah --iterations 300 --seed 42")
+    print("python train_gaifo.py --env halfcheetah --iterations 300 --seed 42 --demo-episodes 50")
     main()
     

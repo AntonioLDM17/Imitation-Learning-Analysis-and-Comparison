@@ -88,8 +88,8 @@ def main():
         discrete = False
     elif args.env == "CartPole-v1":
         demo_filename = f"cartpole_demonstrations_{args.demo_episodes}.npy"
-        model_subdir = f"cartpole_{args.demo_episodes}_2"
-        log_subdir = f"cartpole_{args.demo_episodes}_2"
+        model_subdir = f"cartpole_{args.demo_episodes}_3"
+        log_subdir = f"cartpole_{args.demo_episodes}_3"
         discrete = True
     else:
         raise ValueError("Unsupported environment. Use 'HalfCheetah-v4' or 'CartPole-v1'.")
@@ -189,8 +189,8 @@ def main():
     # Save the trained models in the proper model subdirectory
     model_dir = os.path.join("models", model_subdir)
     os.makedirs(model_dir, exist_ok=True)
-    name_actor = f"2_sqil_actor_{args.env}_{args.demo_episodes}_{total_steps}.pth"
-    name_critic = f"2_sqil_critic_{args.env}_{args.demo_episodes}_{total_steps}.pth"
+    name_actor = f"3_sqil_actor_{args.env}_{args.demo_episodes}_{total_steps}.pth"
+    name_critic = f"3_sqil_critic_{args.env}_{args.demo_episodes}_{total_steps}.pth"
     model_path_actor = os.path.join(model_dir, name_actor)
     model_path_critic = os.path.join(model_dir, name_critic)
     torch.save(agent.actor.state_dict(), model_path_actor)

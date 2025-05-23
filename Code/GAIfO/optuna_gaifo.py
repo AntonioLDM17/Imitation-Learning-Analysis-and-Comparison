@@ -49,7 +49,7 @@ class DummyCallback(BaseCallback):
 
 class GAIfODiscriminator(nn.Module):
     """State-only discriminator (s, s′) → probability."""
-    def __init__(self, flat_obs_dim: int, hidden_dim: int = 64):
+    def __init__(self, flat_obs_dim: int, hidden_dim: int = 256):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(flat_obs_dim * 2, hidden_dim), nn.ReLU(),
@@ -86,9 +86,9 @@ def compute_gradient_penalty(discriminator, s_expert, s_policy,
 def objective(trial: optuna.Trial):
     # 1) Hyper-parameters to search ------------------------------------ #
     disc_epochs   = trial.suggest_categorical("disc_epochs", [3, 5, 7, 10])
-    batch_size    = trial.suggest_categorical("batch_size",  [128, 256, 512])
+    batch_size    = trial.suggest_categorical("batch_size",  [256, 512, 1024])
     rollout_length = 2048                              # ← fixed
-    lambda_gp     = trial.suggest_float("lambda_gp", 1.0, 20.0, log=True)
+    lambda_gp     = trial.suggest_float("lambda_gp", 0.1, 20.0, log=True)
     disc_lr       = trial.suggest_float("disc_lr",  1e-5, 1e-3, log=True)
 
     # Training budget *in environment steps* (was iterations)

@@ -1,0 +1,1 @@
+Trial 2 finished with value: 3624.6104966 and parameters: {'disc_epochs': 20, 'batch_size': 512, 'lambda_gp': 5.165201675071828, 'disc_lr': 5.4868671601784924e-05, 'total_steps': 1001472}. Best is trial 2 with value: 3624.6104966.

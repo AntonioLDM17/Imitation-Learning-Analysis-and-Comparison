@@ -138,8 +138,8 @@ def main():
         losses, accs = [], []
         for _ in range(disc_updates):
             stats = gail_trainer.train_disc()
-            losses.append(stats.get('loss', 0))
-            accs.append(stats.get('accuracy', 0))
+            losses.append(stats.get('disc_loss', 0))
+            accs.append(stats.get('disc_accuracy', 0))
         avg_loss = float(np.mean(losses))
         avg_acc = float(np.mean(accs))
 

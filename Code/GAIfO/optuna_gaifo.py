@@ -97,7 +97,7 @@ def objective(trial: optuna.Trial):
         [ 489 * rollout_length])    # 1 001 472 steps
 
     # 2) Fixed settings (derived from CLI) ----------------------------- #
-    SEED         = 42  # + trial.number if you want to use different seeds
+    SEED         = 42  #if you want to use different seeds
     ENV_NAME     = args.env
     DEMO_EPISODES = args.demo_episodes
 

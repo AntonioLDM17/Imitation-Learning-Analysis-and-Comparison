@@ -46,7 +46,7 @@ class DummyCallback(BaseCallback):
 # Discriminator (unchanged)
 # -----------------------------------------------------------------------------
 class GAIfODiscriminator(nn.Module):
-    def __init__(self, flat_obs_dim: int, hidden_dim: int = 64):
+    def __init__(self, flat_obs_dim: int, hidden_dim: int = 256):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(flat_obs_dim * 2, hidden_dim),
@@ -115,10 +115,10 @@ def main() -> None:
     parser.add_argument(
         "--steps",
         type=int,
-        default=300 * 2048,  # matches the original 300 iterations × 2 048 steps
+        default=498 * 2048,  # 1 001 472 steps
         help="Total environment interaction steps to train.",
     )
-    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--seed", type=int, default=44, help="Random seed")
     parser.add_argument("--demo_episodes", type=int, default=50, help="Number of expert episodes to use for training")
     args = parser.parse_args()
 
@@ -144,7 +144,7 @@ def main() -> None:
 
     env = DummyVecEnv([lambda: Monitor(gym.make(ENV_NAME), LOG_DIR)])
     n_envs = env.num_envs  # usually 1
-    SEED = args.seed + 2
+    SEED = args.seed
 
     # ------------------------------------------------------------------
     # Expert demonstration loading (unchanged)
@@ -235,8 +235,8 @@ def main() -> None:
         # --------------------------------------------------------------
         disc_epochs, batch_size = 20, 512
         for _ in range(disc_epochs):
-            idx_pol = np.random.choice(len(rollout_s), batch_size)
-            idx_exp = np.random.choice(len(expert_s), batch_size)
+            idx_pol = np.random.choice(len(rollout_s), batch_size, replace=True)
+            idx_exp = np.random.choice(len(expert_s), batch_size, replace=True)
             s_pol, s_pol_next = rollout_s[idx_pol], rollout_s_next[idx_pol]
             s_exp, s_exp_next = expert_s[idx_exp], expert_s_next[idx_exp]
             pred_pol = discriminator(s_pol, s_pol_next)
@@ -261,7 +261,7 @@ def main() -> None:
         learner.train()
 
         # Evaluation every 1 iterations (originally 10)
-        if (itr + 1) % 1 == 0 or total_steps_so_far >= total_steps_target:
+        if (itr + 1) % 10 == 0 or total_steps_so_far >= total_steps_target:
             eval_mean = np.mean(evaluate_policy(learner, env, n_eval_episodes=10)[0])
             print(f"Evaluation @ {total_steps_so_far} steps → mean reward: {eval_mean:.2f}")
             writer.add_scalar("Reward/Evaluation", eval_mean, total_steps_so_far)
@@ -286,3 +286,4 @@ if __name__ == "__main__":
     print("Example usage:")
     print("python train_gaifo.py --env halfcheetah --steps 1000000 --seed 42 --demo_episodes 50")
     main()
+    

@@ -40,8 +40,6 @@ def main():
                         help="Total timesteps to train GAIL")
     parser.add_argument("--seed", type=int, default=42,
                         help="Random seed")
-    parser.add_argument("--policy", choices=["ppo","trpo","sac"], default="trpo",
-                        help="Expert policy algorithm to use for demonstrations")
     parser.add_argument("--demo_episodes", type=int, default=50,
                         help="Number of expert episodes for training")
     args = parser.parse_args()
@@ -143,7 +141,6 @@ def main():
     )
 
     """
-    # Instantiate GAIL trainer
     gail_trainer = GAIL(
         demonstrations=demonstrations,
         demo_batch_size=1024, # Original 1024
@@ -158,6 +155,7 @@ def main():
         custom_logger=il_logger,
     )
     """
+    # Instantiate GAIL trainer
     gail_trainer = GAIL(
         demonstrations=demonstrations,
         demo_batch_size=2048,

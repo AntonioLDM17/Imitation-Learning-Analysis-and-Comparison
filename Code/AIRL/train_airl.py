@@ -63,8 +63,8 @@ def main():
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     DEMO_DIR = os.path.join(BASE_DIR, os.pardir, "data", "demonstrations", str(args.demo_episodes))
     DEMO_FILE = f"{args.env}_demonstrations_{args.demo_episodes}.npy"
-    MODELS_DIR = os.path.join(BASE_DIR, "models", f"airl_{args.env}_{args.demo_episodes}_2M")
-    LOG_DIR = os.path.join(BASE_DIR, "logs", f"airl_{args.env}_{args.demo_episodes}_2M")
+    MODELS_DIR = os.path.join(BASE_DIR, "models", f"airl_{args.env}_{args.demo_episodes}_{args.timesteps}")
+    LOG_DIR = os.path.join(BASE_DIR, "logs", f"airl_{args.env}_{args.demo_episodes}_{args.timesteps}")
     os.makedirs(MODELS_DIR, exist_ok=True)
     os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -132,8 +132,8 @@ def main():
     airl_trainer = AIRL(
         demonstrations=demonstrations,
         demo_batch_size=args.demo_batch_size,
-        gen_replay_buffer_capacity=1024, # Original 512
-        n_disc_updates_per_round=24, # Original 16
+        gen_replay_buffer_capacity=1024,
+        n_disc_updates_per_round=24, 
         venv=env,
         gen_algo=learner,
         reward_net=reward_net,
@@ -166,10 +166,10 @@ def main():
         disc_losses, disc_accs = [], []
         for _ in range(disc_updates):
             stats = airl_trainer.train_disc()
-            if 'loss' in stats:
-                disc_losses.append(stats['loss'])
-            if 'accuracy' in stats:
-                disc_accs.append(stats['accuracy'])
+            if 'disc_loss' in stats:
+                disc_losses.append(stats['disc_loss'])
+            if 'disc_acc' in stats:
+                disc_accs.append(stats['disc_acc'])
 
         # Log discriminator metrics
         if disc_losses:
@@ -197,13 +197,13 @@ def main():
     writer.close()
 
     # Save trained models
-    learner.save(os.path.join(MODELS_DIR, f"airl_{args.env}_{args.timesteps}"))
-    torch.save(reward_net.state_dict(), os.path.join(MODELS_DIR, f"airl_reward_{args.env}_{args.timesteps}.pth"))
+    learner.save(os.path.join(MODELS_DIR, f"airl_{args.env}_{args.timesteps}_X"))
+    torch.save(reward_net.state_dict(), os.path.join(MODELS_DIR, f"airl_reward_{args.env}_{args.timesteps}_X.pth"))
 
     env.close()
 
 
 if __name__ == "__main__":
-    print("Example: python train_airl.py --env cartpole --timesteps 1000000 --seed 42 --demo-episodes 100")
+    print("Example: python train_airl.py --env halfcheetah --timesteps 1000000 --seed 42 --demo-episodes 100")
     print("To monitor: tensorboard --logdir logs")
     main()

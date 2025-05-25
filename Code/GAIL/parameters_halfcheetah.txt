@@ -1,0 +1,38 @@
+--env: halfcheetah
+--timesteps: 1000000
+--seed: 42
+--demo_episodes: 100
+
+# Generator algorithm (TRPO)
+learner = TRPO(
+    "MlpPolicy",
+    env,
+    seed=SEED,
+    verbose=1,
+    tensorboard_log=LOG_DIR,
+)
+
+# Reward network (discriminator)
+reward_net = BasicRewardNet(
+    observation_space=env.observation_space,
+    action_space=env.action_space,
+    hid_sizes=(256, 256, 128),
+    normalize_input_layer=RunningNorm,
+)
+
+# Instantiate GAIL trainer
+gail_trainer = GAIL(
+    demonstrations=demonstrations,
+    demo_batch_size=2048,
+    gen_replay_buffer_capacity=2048,
+    n_disc_updates_per_round=16,
+    disc_opt_kwargs={"lr": 3e-4},
+    venv=env,
+    gen_algo=learner,
+    reward_net=reward_net,
+    allow_variable_horizon=True,
+    init_tensorboard=True,
+    init_tensorboard_graph=False,
+    custom_logger=il_logger,
+)
+

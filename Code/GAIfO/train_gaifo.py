@@ -172,7 +172,6 @@ def main() -> None:
     learner.ep_info_buffer, learner.ep_success_buffer = [], []
 
     discriminator = GAIfODiscriminator(flat_obs_dim).to(device)
-    #disc_optimizer = optim.Adam(discriminator.parameters(), lr=3.989020006157259e-05, betas=(0.9, 0.999))
     disc_lr =5.4868671601784924e-05
     disc_optimizer = optim.Adam(discriminator.parameters(), lr=disc_lr, betas=(0.9, 0.999))  # Adjusted learning rate
     bce_loss = nn.BCELoss()
@@ -260,7 +259,7 @@ def main() -> None:
         learner.rollout_buffer.rewards = rewards.cpu().numpy().flatten()
         learner.train()
 
-        # Evaluation every 1 iterations (originally 10)
+        # Evaluation every 10 iterations
         if (itr + 1) % 10 == 0 or total_steps_so_far >= total_steps_target:
             eval_mean = np.mean(evaluate_policy(learner, env, n_eval_episodes=10)[0])
             print(f"Evaluation @ {total_steps_so_far} steps → mean reward: {eval_mean:.2f}")

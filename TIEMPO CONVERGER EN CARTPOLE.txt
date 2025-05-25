@@ -1,0 +1,4 @@
+TIEMPO CONVERGER EN CARTPOLE:
+AIRL: 200K (a partir de 200k se estabiliza en 500)
+
+

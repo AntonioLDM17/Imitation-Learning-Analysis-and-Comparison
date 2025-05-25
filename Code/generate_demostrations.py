@@ -101,7 +101,7 @@ def main():
 
     # Set demonstrations directory (centralized in "data/demonstrations")
     DEMO_DIR = os.path.join("data", "demonstrations", str(EPISODES))
-    DEMO_FILENAME = f"{args.env}_demonstrations_{EPISODES}_{TIMESTEPS_TRAINED}.npy"
+    DEMO_FILENAME = f"{args.env}_demonstrations_{EPISODES}.npy"
     os.makedirs(DEMO_DIR, exist_ok=True)
 
     # Create a vectorized environment

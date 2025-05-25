@@ -24,9 +24,9 @@ def main():
     parser.add_argument(
         "--env",
         type=str,
-        choices=["cartpole", "halfcheetah"],
+        choices=["cartpole", "halfcheetah", "mountaincar", "acrobot"],
         default="halfcheetah",
-        help="Environment to use: 'cartpole' or 'halfcheetah'"
+        help="Environment to use: 'cartpole' or 'halfcheetah or 'mountaincar' or 'acrobot'"
     )
     parser.add_argument(
         "--policy",
@@ -56,6 +56,10 @@ def main():
         ENV_NAME = "CartPole-v1"
     elif args.env == "halfcheetah":
         ENV_NAME = "HalfCheetah-v4"
+    elif args.env == "mountaincar":
+        ENV_NAME = "MountainCar-v0"
+    elif args.env == "acrobot":
+        ENV_NAME = "Acrobot-v1"
     else:
         raise ValueError("The --env parameter must be 'cartpole' or 'halfcheetah'.")
 

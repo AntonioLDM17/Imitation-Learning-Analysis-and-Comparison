@@ -53,8 +53,8 @@ def main():
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     DEMO_DIR = os.path.join(BASE_DIR, "..", "data", "demonstrations", str(args.demo_episodes))
     DEMO_FILE = f"{args.env}_demonstrations_{args.demo_episodes}.npy"
-    MODELS_DIR = os.path.join(BASE_DIR, f"models/gail_{args.env}_{args.demo_episodes}_PPO")
-    LOG_DIR = os.path.join(BASE_DIR, "logs", f"gail_{args.env}_{args.demo_episodes}_PPO")
+    MODELS_DIR = os.path.join(BASE_DIR, f"models/gail_{args.env}_{args.demo_episodes}_TRPO_2M_simple")
+    LOG_DIR = os.path.join(BASE_DIR, "logs", f"gail_{args.env}_{args.demo_episodes}_TRPO_2M_simple")
     os.makedirs(MODELS_DIR, exist_ok=True)
     os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -76,7 +76,6 @@ def main():
         demonstrations = demonstrations.tolist()
 
     # Generator algorithm (TRPO)
-    """
     learner = TRPO(
         "MlpPolicy",
         env,
@@ -86,20 +85,27 @@ def main():
     )
     """
     policy_kwargs = dict(net_arch=[256, 256, 128])
-    """learner = TRPO(
+    learner = TRPO(
         "MlpPolicy",
         env,
         learning_rate=3e-4,
-        n_steps=2048,
         batch_size=512,
         cg_max_steps=20,
         cg_damping=0.05,
-        gae_lambda=0.97,
+        line_search_shrinking_factor=0.8,
+        line_search_max_iter = 10,
         target_kl=0.005,
-        policy_kwargs=policy_kwargs,
+        n_critic_updates=10,
+        sub_sampling_factor=1,
+        n_steps=2048,  # Original 2048
+        gamma=0.99,
+        gae_lambda = 0.97,
         seed=SEED,
         verbose=1,
-    )"""
+        policy_kwargs=policy_kwargs,
+    )
+    """
+    """
     learner = PPO(
         "MlpPolicy",
         env,
@@ -113,6 +119,7 @@ def main():
         verbose=1,
         policy_kwargs=policy_kwargs,
     )
+    """
     # SB3 logger
     sb3_logger = sb3_configure(LOG_DIR, ["stdout","tensorboard"])
     learner.set_logger(sb3_logger)
@@ -164,7 +171,7 @@ def main():
         init_tensorboard=True,
         init_tensorboard_graph=False,
         custom_logger=il_logger,
-        )
+    )
 
     # SummaryWriter for custom logging
     writer = SummaryWriter(LOG_DIR)
@@ -187,8 +194,6 @@ def main():
         expert_accuracies, gen_accuracies = [], []
         for _ in range(disc_updates):
             stats = gail_trainer.train_disc()
-            # Log discriminator metrics
-            print(stats)
             # Collect discriminator stats
             losses.append(stats.get('disc_loss',0))
             accs.append(stats.get('disc_accuracy',0))
@@ -215,8 +220,8 @@ def main():
     writer.close()
 
     # Save models
-    learner.save(os.path.join(MODELS_DIR, f"gail_{args.env}_{args.timesteps}_PPO"))
-    torch.save(reward_net.state_dict(), os.path.join(MODELS_DIR, f"gail_reward_{args.env}_{args.timesteps}_PPO.pth"))
+    learner.save(os.path.join(MODELS_DIR, f"gail_{args.env}_{args.timesteps}_TRPO_2M_simple"))
+    torch.save(reward_net.state_dict(), os.path.join(MODELS_DIR, f"gail_reward_{args.env}_{args.timesteps}_TRPO_2M_simple.pth"))
     env.close()
 
 

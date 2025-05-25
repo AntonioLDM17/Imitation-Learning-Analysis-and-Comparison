@@ -135,8 +135,8 @@ def main() -> None:
     DEMO_DIR = os.path.join("..", "data", "demonstrations", str(args.demo_episodes))
     # DEMO_DIR = os.path.join("..", "data", "demonstrations")
     DEMO_FILENAME = f"{args.env}_demonstrations_{args.demo_episodes}.npy"
-    MODELS_DIR = f"models/gaifo_{args.env}_{args.demo_episodes}_best_model"
-    LOG_DIR = os.path.join("logs", f"gaifo_{args.env}_{args.demo_episodes}_best_model")
+    MODELS_DIR = f"models/gaifo_{args.env}_{args.demo_episodes}_2M"
+    LOG_DIR = os.path.join("logs", f"gaifo_{args.env}_{args.demo_episodes}_2M")
     os.makedirs(MODELS_DIR, exist_ok=True)
     os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -284,6 +284,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     print("Example usage:")
-    print("python train_gaifo.py --env halfcheetah --steps 1000000 --seed 42 --demo_episodes 50")
+    print("python train_gaifo.py --env halfcheetah --steps 1000000 --seed 44 --demo_episodes 50")
     main()
     

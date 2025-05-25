@@ -63,8 +63,8 @@ def main():
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     DEMO_DIR = os.path.join(BASE_DIR, os.pardir, "data", "demonstrations", str(args.demo_episodes))
     DEMO_FILE = f"{args.env}_demonstrations_{args.demo_episodes}.npy"
-    MODELS_DIR = os.path.join(BASE_DIR, "models", f"airl_{args.env}_{args.demo_episodes}_4")
-    LOG_DIR = os.path.join(BASE_DIR, "logs", f"airl_{args.env}_{args.demo_episodes}_4")
+    MODELS_DIR = os.path.join(BASE_DIR, "models", f"airl_{args.env}_{args.demo_episodes}_2M")
+    LOG_DIR = os.path.join(BASE_DIR, "logs", f"airl_{args.env}_{args.demo_episodes}_2M")
     os.makedirs(MODELS_DIR, exist_ok=True)
     os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -197,8 +197,8 @@ def main():
     writer.close()
 
     # Save trained models
-    learner.save(os.path.join(MODELS_DIR, f"airl_{args.env}_{args.timesteps}_4"))
-    torch.save(reward_net.state_dict(), os.path.join(MODELS_DIR, f"airl_reward_{args.env}_{args.timesteps}_4.pth"))
+    learner.save(os.path.join(MODELS_DIR, f"airl_{args.env}_{args.timesteps}"))
+    torch.save(reward_net.state_dict(), os.path.join(MODELS_DIR, f"airl_reward_{args.env}_{args.timesteps}.pth"))
 
     env.close()
 

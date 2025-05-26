@@ -51,7 +51,7 @@ def main():
         help="Expert demo batch size for discriminator"
     )
     parser.add_argument(
-        "--demo-episodes", type=int, default=50,
+        "--demo_episodes", type=int, default=50,
         help="Number of expert episodes for training"
     )
     args = parser.parse_args()
@@ -63,8 +63,8 @@ def main():
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     DEMO_DIR = os.path.join(BASE_DIR, os.pardir, "data", "demonstrations", str(args.demo_episodes))
     DEMO_FILE = f"{args.env}_demonstrations_{args.demo_episodes}.npy"
-    MODELS_DIR = os.path.join(BASE_DIR, "models", f"airl_{args.env}_{args.demo_episodes}_{args.timesteps}")
-    LOG_DIR = os.path.join(BASE_DIR, "logs", f"airl_{args.env}_{args.demo_episodes}_{args.timesteps}")
+    MODELS_DIR = os.path.join(BASE_DIR, "models", f"airl_{args.env}_{args.demo_episodes}_2M")
+    LOG_DIR = os.path.join(BASE_DIR, "logs", f"airl_{args.env}_{args.demo_episodes}_2M")
     os.makedirs(MODELS_DIR, exist_ok=True)
     os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -197,13 +197,14 @@ def main():
     writer.close()
 
     # Save trained models
-    learner.save(os.path.join(MODELS_DIR, f"airl_{args.env}_{args.timesteps}_X"))
-    torch.save(reward_net.state_dict(), os.path.join(MODELS_DIR, f"airl_reward_{args.env}_{args.timesteps}_X.pth"))
+    learner.save(os.path.join(MODELS_DIR, f"airl_{args.env}_{args.timesteps}"))
+    torch.save(reward_net.state_dict(), os.path.join(MODELS_DIR, f"airl_reward_{args.env}_{args.timesteps}.pth"))
 
     env.close()
 
 
 if __name__ == "__main__":
-    print("Example: python train_airl.py --env halfcheetah --timesteps 1000000 --seed 42 --demo-episodes 100")
+    print("Example: python train_airl.py --env halfcheetah --timesteps 1000000 --seed 42 --demo_episodes 100")
     print("To monitor: tensorboard --logdir logs")
     main()
+    

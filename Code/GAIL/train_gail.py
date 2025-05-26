@@ -51,8 +51,8 @@ def main():
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     DEMO_DIR = os.path.join(BASE_DIR, "..", "data", "demonstrations", str(args.demo_episodes))
     DEMO_FILE = f"{args.env}_demonstrations_{args.demo_episodes}.npy"
-    MODELS_DIR = os.path.join(BASE_DIR, f"models/gail_{args.env}_{args.demo_episodes}_TRPO_2M_simple")
-    LOG_DIR = os.path.join(BASE_DIR, "logs", f"gail_{args.env}_{args.demo_episodes}_TRPO_2M_simple")
+    MODELS_DIR = os.path.join(BASE_DIR, f"models/gail_{args.env}_{args.demo_episodes}_TRPO_2M")
+    LOG_DIR = os.path.join(BASE_DIR, "logs", f"gail_{args.env}_{args.demo_episodes}_TRPO_2M")
     os.makedirs(MODELS_DIR, exist_ok=True)
     os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -218,8 +218,8 @@ def main():
     writer.close()
 
     # Save models
-    learner.save(os.path.join(MODELS_DIR, f"gail_{args.env}_{args.timesteps}_TRPO_2M_simple"))
-    torch.save(reward_net.state_dict(), os.path.join(MODELS_DIR, f"gail_reward_{args.env}_{args.timesteps}_TRPO_2M_simple.pth"))
+    learner.save(os.path.join(MODELS_DIR, f"gail_{args.env}_{args.timesteps}_TRPO_2M"))
+    torch.save(reward_net.state_dict(), os.path.join(MODELS_DIR, f"gail_reward_{args.env}_{args.timesteps}_TRPO_2M.pth"))
     env.close()
 
 

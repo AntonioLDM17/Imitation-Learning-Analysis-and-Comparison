@@ -271,7 +271,7 @@ def main() -> None:
     # ------------------------------------------------------------------
     # Save & final evaluation
     # ------------------------------------------------------------------
-    model_path = os.path.join(MODELS_DIR, f"gaifo_{args.env}_{total_steps_so_far}")
+    model_path = os.path.join(MODELS_DIR, f"gaifo_{args.env}_{args.demo_episodes}_{total_steps_so_far}")
     learner.save(model_path)
     print(f"GAIfO model saved at {model_path}.zip")
 
@@ -285,4 +285,3 @@ if __name__ == "__main__":
     print("Example usage:")
     print("python train_gaifo.py --env halfcheetah --steps 1000000 --seed 44 --demo_episodes 50")
     main()
-    

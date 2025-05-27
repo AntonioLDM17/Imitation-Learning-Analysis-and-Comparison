@@ -47,7 +47,7 @@ def main():
                         help="Number of iterative improvement iterations (used only if alpha > 0)")
     parser.add_argument("--demo_file", type=str, default=None,
                         help="Path to demonstrations (npy) in data/demonstrations")
-    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--seed", type=int, default=44, help="Random seed")
     parser.add_argument("--demo_episodes", type=int, default=50, help="Number of expert episodes for training (used only if demo_file is None)")
     # Hyperparameters for inverse model training
     parser.add_argument("--inv_epochs", type=int, default=10, help="Epochs for pre-demonstration inverse model training")

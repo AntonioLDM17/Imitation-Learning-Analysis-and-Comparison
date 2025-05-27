@@ -1,0 +1,38 @@
+    """ 
+    python train_bco_nuevo.py --env halfcheetah --pre_interactions 100000 --alpha 0.5 --num_iterations 2 --policy_epochs 15 --iter_policy_epochs 30 --demo_episodes 10
+    === STEPS SUMMARY ===
+    N (demo transitions)       = 16,015
+    I_pre                      = 100,000
+    alpha                      = 0.5
+    num_iterations (T)         = 2
+    policy_epochs (E)          = 15
+    iter_policy_epochs (R)     = 30
+    → env_steps esperado       = 200,000
+    → bc_steps esperado        = 1,201,125
+    → total_global_steps ≈     = 1,401,125
+    Training complete!
+    Total environment steps: 200000
+    Total BC steps: 1201125
+    Expected total global steps: 1401125
+    Actual total global steps: 1401125
+    Final evaluation: mean reward = 3631.59, std = 2102.40
+    """
+    """ 
+    python train_bco_nuevo.py --env halfcheetah --pre_interactions 120000 --alpha 0.5 --num_iterations 2 --policy_epochs 10 --iter_policy_epochs 50 --demo_episodes 10 
+    === STEPS SUMMARY ===
+    N (demo transitions)       = 16,015
+    I_pre                      = 120,000
+    alpha                      = 0.5
+    num_iterations (T)         = 2
+    policy_epochs (E)          = 10
+    iter_policy_epochs (R)     = 50
+    → env_steps esperado       = 240,000
+    → bc_steps esperado        = 1,761,650
+    → total_global_steps ≈     = 2,001,650
+    Training complete!
+    Total environment steps: 240000
+    Total BC steps: 1761650
+    Expected total global steps: 2001650
+    Actual total global steps: 2001650
+    Final evaluation: mean reward = 2198.51, std = 1747.78
+    """

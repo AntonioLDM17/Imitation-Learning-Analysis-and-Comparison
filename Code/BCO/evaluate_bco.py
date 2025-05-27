@@ -44,7 +44,7 @@ def main():
                         help="Ruta al modelo entrenado (pt) de BCO")
     parser.add_argument("--n_episodes", type=int, default=20,
                         help="Número de episodios para evaluación")
-    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--seed", type=int, default=44, help="Random seed")
     args = parser.parse_args()
 
     if args.env == "cartpole":
@@ -74,5 +74,5 @@ def main():
 
 if __name__ == "__main__":
     print("Example usage:")
-    print("python evaluate_bco.py --env cartpole --model_path models/bco_cartpole.pt --n_episodes 20 --seed 42")
+    print("python evaluate_bco.py --env cartpole --model_path models/bco_cartpole.pt --n_episodes 20 --seed 44")
     main()

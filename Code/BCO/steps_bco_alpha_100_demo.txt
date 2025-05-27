@@ -1,0 +1,57 @@
+    """ 
+    python train_bco_nuevo.py --env halfcheetah --pre_interactions 160000 --alpha 0.5 --num_iterations 2 --policy_epochs 20 --iter_policy_epochs 5 --demo_episodes 100
+    === STEPS SUMMARY ===
+    N (demo transitions)       = 104,103
+    I_pre                      = 160,000
+    alpha                      = 0.5
+    num_iterations (T)         = 2
+    policy_epochs (E)          = 20
+    iter_policy_epochs (R)     = 5
+    → env_steps esperado       = 320,000
+    → bc_steps esperado        = 3,123,090
+    → total_global_steps ≈     = 3,443,090
+    Training complete!
+    Total environment steps: 320000
+    Total BC steps: 3123090
+    Expected total global steps: 3443090
+    Actual total global steps: 3443090
+    Final evaluation: mean reward = 5351.89, std = 33.45
+    """
+    """ 
+    python train_bco_nuevo.py --env halfcheetah --pre_interactions 60000 --alpha 0.5 --num_iterations 2 --policy_epochs 10 --iter_policy_epochs 4 --demo_episodes 100
+    === STEPS SUMMARY ===
+    N (demo transitions)       = 104,103
+    I_pre                      = 60,000
+    alpha                      = 0.5
+    num_iterations (T)         = 2
+    policy_epochs (E)          = 10
+    iter_policy_epochs (R)     = 4
+    → env_steps esperado       = 120,000
+    → bc_steps esperado        = 1,873,854
+    → total_global_steps ≈     = 1,993,854
+    Training complete!
+    Total environment steps: 120000
+    Total BC steps: 1873854
+    Expected total global steps: 1993854
+    Actual total global steps: 1993854
+    Final evaluation: mean reward = 4788.64, std = 750.00
+    """
+    """ 
+    python train_bco_nuevo.py --env halfcheetah --pre_interactions 63500 --alpha 0.5 --num_iterations 2 --policy_epochs 10 --iter_policy_epochs 4 --demo_episodes 100
+    === STEPS SUMMARY ===
+    N (demo transitions)       = 104,103
+    I_pre                      = 63,500
+    alpha                      = 0.5
+    num_iterations (T)         = 2
+    policy_epochs (E)          = 10
+    iter_policy_epochs (R)     = 4
+    → env_steps esperado       = 127,000
+    → bc_steps esperado        = 1,873,854
+    → total_global_steps ≈     = 2,000,854
+    Training complete!
+    Total environment steps: 127000
+    Total BC steps: 1873854
+    Expected total global steps: 2000854
+    Actual total global steps: 2000854
+    Final evaluation: mean reward = 717.02, std = 743.12
+    """

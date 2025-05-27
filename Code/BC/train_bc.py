@@ -1,6 +1,7 @@
 import os
 import sys
 import types
+import math
 import argparse
 import time
 import numpy as np
@@ -34,8 +35,8 @@ def main():
         help="Environment: 'cartpole' or 'halfcheetah'"
     )
     parser.add_argument(
-        "--epochs", type=int, default=20,
-        help="Number of training epochs for BC"
+        "--timesteps", type=int, default=2_000_000,
+        help="Total timesteps for BC training"
     )
     parser.add_argument(
         "--seed", type=int, default=42,
@@ -57,9 +58,9 @@ def main():
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     DEMO_DIR = os.path.join(BASE_DIR, os.pardir, "data", "demonstrations", str(args.demo_episodes))
     DEMO_FILE = f"{args.env}_demonstrations_{args.demo_episodes}.npy"
-    MODEL_DIR = os.path.join(BASE_DIR, "models", f"bc_{args.env}_{args.demo_episodes}")
+    MODEL_DIR = os.path.join(BASE_DIR, "models", f"bc_{args.env}_{args.demo_episodes}_2M_SEED_{SEED}")
     MODEL_NAME = f"bc_{args.env}"
-    LOG_DIR = os.path.join(BASE_DIR, "logs", f"bc_{args.env}_{args.demo_episodes}")
+    LOG_DIR = os.path.join(BASE_DIR, "logs", f"bc_{args.env}_{args.demo_episodes}_2M_SEED_{SEED}")
     os.makedirs(MODEL_DIR, exist_ok=True)
     os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -80,12 +81,14 @@ def main():
         demonstrations = demonstrations.tolist()
     transitions = rollout.flatten_trajectories(demonstrations)
 
-    # Compute total demonstration steps (D)
+    # Compute total demonstration steps (D) (8000 for HalfCheetah)
     try:
-        D = transitions.obs.shape[0]
+        D = transitions.obs.shape[0] 
     except Exception:
         D = sum(len(traj["obs"]) for traj in demonstrations)
-
+    print(f"Total demonstration steps (D): {D}")
+    EPOCHS = math.ceil(args.timesteps / D)
+    print(f"Total epochs to train: {EPOCHS}")
     # Initialize Behavioral Cloning trainer without default logger
     bc_trainer = bc.BC(
         observation_space=env.observation_space,
@@ -107,7 +110,7 @@ def main():
     writer.add_scalar('bc/epoch_duration_s', 0, 0)
     writer.flush()
     # Training loop: epoch-level with step mapping and computed NLL loss
-    for epoch in tqdm(range(1, args.epochs + 1), desc="BC epochs"):
+    for epoch in tqdm(range(1, EPOCHS + 1), desc="BC epochs"):
         start = time.time()
         # Train one epoch
         bc_trainer.train(n_epochs=1)
@@ -145,10 +148,10 @@ def main():
     )
     mean_final = float(np.mean(final_rewards))
     print(f"Mean reward after training: {mean_final}")
-    writer.add_scalar('evaluation/post_training_reward', mean_final, args.epochs * D)
+    writer.add_scalar('evaluation/post_training_reward', mean_final, EPOCHS * D)
 
     # Save model
-    MODEL_NAME = MODEL_NAME+f"_{args.epochs*D}.pt"
+    MODEL_NAME = MODEL_NAME+f"_{EPOCHS*D}.pt"
     model_path = os.path.join(MODEL_DIR, MODEL_NAME)
     torch.save(bc_trainer.policy.state_dict(), model_path)
     print(f"Behavioral Cloning model saved at {model_path}")
@@ -159,6 +162,7 @@ def main():
 
 
 if __name__ == "__main__":
-    print("Example: python train_bc.py --env halfcheetah --epochs 20 --seed 42 --demo_episodes 50")
+    print("Example: python train_bc.py --env halfcheetah --timesteps 2000000 --seed 42 --demo_episodes 50")
     print("Monitor with: tensorboard --logdir logs")
     main()
+        

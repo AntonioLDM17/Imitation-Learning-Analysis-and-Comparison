@@ -8,6 +8,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 # Gym and SB3 imports
 import gymnasium as gym
+from gymnasium.wrappers import TimeLimit
 from sb3_contrib import TRPO  # Optional: keep for compatibility if needed
 from stable_baselines3 import PPO
 from stable_baselines3.common.evaluation import evaluate_policy
@@ -17,6 +18,7 @@ from stable_baselines3.common.logger import configure as sb3_configure
 from imitation.algorithms.adversarial.airl import AIRL
 from imitation.data.wrappers import RolloutInfoWrapper
 from imitation.rewards.reward_nets import BasicShapedRewardNet
+from imitation.rewards.reward_nets import NormalizedRewardNet
 from imitation.util.networks import RunningNorm
 from imitation.util.util import make_vec_env
 from imitation.util.logger import configure as il_configure
@@ -29,6 +31,16 @@ sys.modules["mujoco_py"] = dummy
 sys.modules["mujoco_py.builder"] = dummy.builder
 sys.modules["mujoco_py.locomotion"] = dummy.locomotion
 
+from gym.wrappers import TimeLimit, RecordEpisodeStatistics
+
+class NoDone(gym.Wrapper):
+  def step(self, a):
+    obs, r, done, info = super().step(a)
+    # Si es un truncamiento por TimeLimit, lo dejamos; en otro caso lo ignoramos:
+    if info.get("TimeLimit.truncated", False):
+      return obs, r, True, info
+    else:
+      return obs, r, False, info
 
 def main():
     parser = argparse.ArgumentParser(
@@ -63,8 +75,8 @@ def main():
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     DEMO_DIR = os.path.join(BASE_DIR, os.pardir, "data", "demonstrations", str(args.demo_episodes))
     DEMO_FILE = f"{args.env}_demonstrations_{args.demo_episodes}.npy"
-    MODELS_DIR = os.path.join(BASE_DIR, "models", f"airl_{args.env}_{args.demo_episodes}_2M")
-    LOG_DIR = os.path.join(BASE_DIR, "logs", f"airl_{args.env}_{args.demo_episodes}_2M")
+    MODELS_DIR = os.path.join(BASE_DIR, "models", f"airl_{args.env}_{args.demo_episodes}_2M_seed_{SEED}")
+    LOG_DIR = os.path.join(BASE_DIR, "logs", f"airl_{args.env}_{args.demo_episodes}_2M_seed_{SEED}")
     os.makedirs(MODELS_DIR, exist_ok=True)
     os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -128,6 +140,7 @@ def main():
         discount_factor=0.99,
         normalize_input_layer=RunningNorm,
     )
+    # reward_net = NormalizedRewardNet(reward_net, normalize_input_layer=RunningNorm)
     # Instantiate AIRL trainer with HierarchicalLogger
     airl_trainer = AIRL(
         demonstrations=demonstrations,
@@ -137,7 +150,7 @@ def main():
         venv=env,
         gen_algo=learner,
         reward_net=reward_net,
-        allow_variable_horizon=True,
+        allow_variable_horizon=True,        
         init_tensorboard=True,
         init_tensorboard_graph=False,
         custom_logger=il_logger,

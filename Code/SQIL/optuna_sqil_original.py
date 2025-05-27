@@ -87,7 +87,7 @@ def objective(trial: optuna.Trial):
     hidden_dim = 256
 
     # Set seed (varying seed between trials)
-    seed = 42 + trial.number
+    seed = 44 + trial.number
     np.random.seed(seed)
     torch.manual_seed(seed)
 

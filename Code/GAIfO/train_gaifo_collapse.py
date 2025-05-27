@@ -78,7 +78,7 @@ def main():
     parser = argparse.ArgumentParser(description="Train GAIfO using TRPO (state-only imitation). Uses total env steps instead of iterations.")
     parser.add_argument("--env", type=str, choices=["cartpole", "halfcheetah"], default="cartpole", help="Environment: 'cartpole' or 'halfcheetah'")
     parser.add_argument("--steps", type=int, default=614400, help="Total number of environment interaction steps for training")
-    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--seed", type=int, default=44, help="Random seed")
     parser.add_argument("--demo-episodes", type=int, default=50, help="Number of expert episodes to use for training")
     args = parser.parse_args()
 
@@ -218,5 +218,5 @@ def main():
 
 if __name__ == "__main__":
     print("Example usage:")
-    print("python train_gaifo.py --env halfcheetah --steps 1000000 --seed 42 --demo-episodes 50")
+    print("python train_gaifo.py --env halfcheetah --steps 1000000 --seed 4 --demo-episodes 50")
     main()

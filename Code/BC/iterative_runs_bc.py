@@ -1,6 +1,6 @@
 import os
 # Code to run the script iteratively for different demo episodes
-demo_episodes_list = [10, 20, 50, 100]
+demo_episodes_list = [5, 10, 20, 50, 100]
 for demo_episodes in demo_episodes_list:
     print(f"Running training with {demo_episodes} demonstration episodes...")
     os.system(f"python train_bc.py --env halfcheetah --timesteps 2000000 --seed 44 --demo_episodes {demo_episodes}")

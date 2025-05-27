@@ -68,7 +68,7 @@ def main():
         observation_space=env.observation_space,
         action_space=env.action_space,
         demonstrations=dummy_demo,
-        rng=np.random.default_rng(42)
+        rng=np.random.default_rng(44)
     )
     PolicyClass = dummy_bc.policy.__class__
 

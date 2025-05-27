@@ -95,7 +95,7 @@ def objective(trial: optuna.Trial):
     demo_buffer_capacity, agent_buffer_capacity = 100_000, 100_000
 
     # ───────── Seeding ─────────
-    seed = 42 + trial.number
+    seed = 44 + trial.number
     np.random.seed(seed); torch.manual_seed(seed)
 
     # ───────── Environment-specific paths ─────────

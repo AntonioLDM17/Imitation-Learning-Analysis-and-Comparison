@@ -38,7 +38,7 @@ def main():
                         help="Environment: 'cartpole' or 'halfcheetah'")
     parser.add_argument("--timesteps", type=int, default=200000,
                         help="Total timesteps to train GAIL")
-    parser.add_argument("--seed", type=int, default=42,
+    parser.add_argument("--seed", type=int, default=44,
                         help="Random seed")
     parser.add_argument("--demo_episodes", type=int, default=50,
                         help="Number of expert episodes for training")
@@ -224,6 +224,6 @@ def main():
 
 
 if __name__ == "__main__":
-    print("Example usage: python train_gail.py --env cartpole --timesteps 200000 --seed 42 --demo_episodes 50")
+    print("Example usage: python train_gail.py --env cartpole --timesteps 200000 --seed 44 --demo_episodes 50")
     print("To monitor: tensorboard --logdir logs")
     main()

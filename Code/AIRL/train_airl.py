@@ -55,7 +55,7 @@ def main():
         help="Total timesteps for AIRL training"
     )
     parser.add_argument(
-        "--seed", type=int, default=42,
+        "--seed", type=int, default=44,
         help="Random seed"
     )
     parser.add_argument(
@@ -217,7 +217,7 @@ def main():
 
 
 if __name__ == "__main__":
-    print("Example: python train_airl.py --env halfcheetah --timesteps 1000000 --seed 42 --demo_episodes 100")
+    print("Example: python train_airl.py --env halfcheetah --timesteps 1000000 --seed 44 --demo_episodes 100")
     print("To monitor: tensorboard --logdir logs")
     main()
     

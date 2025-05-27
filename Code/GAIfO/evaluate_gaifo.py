@@ -21,7 +21,7 @@ def main():
                         help="Path to the trained GAIfO model (.zip file)")
     parser.add_argument("--n_episodes", type=int, default=20,
                         help="Number of evaluation episodes")
-    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--seed", type=int, default=44, help="Random seed")
     args = parser.parse_args()
 
     # Select the environment based on the provided argument
@@ -57,7 +57,7 @@ def main():
 
 if __name__ == "__main__":
     print("Example usage:")
-    print("python evaluate_gaifo.py --env halfcheetah --model_path models/gaifo_halfcheetah.zip --n_episodes 20 --seed 42")
+    print("python evaluate_gaifo.py --env halfcheetah --model_path models/gaifo_halfcheetah.zip --n_episodes 20 --seed 44")
     main()
     # Best model: gaifo_halfcheetah_2_disc_epochs10_batch_size256_lambda_gp1.660941233998641_disc_lr3.989020006157259e-05_iterations300
     # Evaluation over 50 episodes:

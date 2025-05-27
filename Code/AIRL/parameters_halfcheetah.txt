@@ -1,6 +1,6 @@
 --env: halfcheetah
 --timesteps: 2000000
---seed: 42
+--seed: 44
 --demo-batch-size: 2048
 --demo_episodes 100
 # SB3 PPO generator with TensorBoard logging

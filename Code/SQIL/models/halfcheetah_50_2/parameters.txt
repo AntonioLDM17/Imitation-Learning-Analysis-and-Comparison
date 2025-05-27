@@ -4,7 +4,7 @@ Demo_episodes: 50
 batch_size: 1024
 time_steps: 1000000 (1000 episodes of 1000 steps)
 update_every: 10
-seed: 42
+seed: 44
 num_episodes: 1000
 num_steps: 1000
 

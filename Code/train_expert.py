@@ -110,5 +110,5 @@ def main():
 
 if __name__ == "__main__":
     print("Usage example:")
-    print("python train_expert.py --env halfcheetah --policy sac --timesteps 1000000 --seed 42")
+    print("python train_expert.py --env halfcheetah --policy sac --timesteps 1000000 --seed 44")
     main()

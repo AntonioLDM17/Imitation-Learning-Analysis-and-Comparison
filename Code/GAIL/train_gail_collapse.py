@@ -37,7 +37,7 @@ def main():
                         help="Environment: 'cartpole' or 'halfcheetah'")
     parser.add_argument("--timesteps", type=int, default=200000,
                         help="Total timesteps to train GAIL")
-    parser.add_argument("--seed", type=int, default=42,
+    parser.add_argument("--seed", type=int, default=44,
                         help="Random seed")
     parser.add_argument("--policy", choices=["ppo","trpo","sac"], default="ppo",
                         help="Expert policy algorithm for demonstrations")
@@ -176,6 +176,6 @@ def main():
 
 
 if __name__ == "__main__":
-    print("Usage example: python train_gail_collapse.py --env halfcheetah --timesteps 200000 --seed 42 --demo-episodes 50")
+    print("Usage example: python train_gail_collapse.py --env halfcheetah --timesteps 200000 --seed 44 --demo-episodes 50")
     print("To monitor: tensorboard --logdir logs")
     main()

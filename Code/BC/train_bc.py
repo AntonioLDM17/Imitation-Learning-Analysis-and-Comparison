@@ -39,7 +39,7 @@ def main():
         help="Total timesteps for BC training"
     )
     parser.add_argument(
-        "--seed", type=int, default=42,
+        "--seed", type=int, default=44,
         help="Random seed"
     )
     parser.add_argument(
@@ -162,7 +162,7 @@ def main():
 
 
 if __name__ == "__main__":
-    print("Example: python train_bc.py --env halfcheetah --timesteps 2000000 --seed 42 --demo_episodes 50")
+    print("Example: python train_bc.py --env halfcheetah --timesteps 2000000 --seed 44 --demo_episodes 50")
     print("Monitor with: tensorboard --logdir logs")
     main()
         

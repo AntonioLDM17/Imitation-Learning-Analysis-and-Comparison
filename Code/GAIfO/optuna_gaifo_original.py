@@ -88,7 +88,7 @@ def objective(trial: optuna.Trial):
     num_iterations = trial.suggest_categorical("num_iterations", [100, 300, 500])
 
     # Fixed parameters and directories
-    SEED = 42 + trial.number
+    SEED = 44 + trial.number
     ENV_NAME = args.env
     DEMO_EPISODES = args.demo_episodes
     if ENV_NAME == "HalfCheetah-v4":

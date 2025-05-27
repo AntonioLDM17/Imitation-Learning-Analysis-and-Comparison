@@ -102,7 +102,7 @@ def main():
     pa = argparse.ArgumentParser()
     pa.add_argument("--env", choices=["cartpole", "halfcheetah"], default="cartpole")
     pa.add_argument("--steps", type=int, default=300 * 2048)
-    pa.add_argument("--seed", type=int, default=42)
+    pa.add_argument("--seed", type=int, default=44)
     pa.add_argument("--demo_episodes", type=int, default=50)
     pa.add_argument("--checkpoint", type=pathlib.Path)
     args = pa.parse_args()

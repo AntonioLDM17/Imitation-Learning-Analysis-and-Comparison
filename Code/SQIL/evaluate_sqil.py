@@ -30,7 +30,7 @@ def main():
     parser = argparse.ArgumentParser(description="Evaluate a SQIL trained model")
     parser.add_argument("--env", type=str, default="HalfCheetah-v4",
                         help="Gym environment name (e.g., HalfCheetah-v4 or CartPole-v1)")
-    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--seed", type=int, default=44, help="Random seed")
     parser.add_argument("--episodes", type=int, default=50,
                         help="Number of evaluation episodes")
     parser.add_argument("--model_dir", type=str, default="models",
@@ -107,6 +107,6 @@ def main():
 
 if __name__ == "__main__":
     print("Example usage:")
-    print("python evaluate_sqil.py --env HalfCheetah-v4 --seed 42 --episodes 50 --model_dir models")
-    print("python evaluate_sqil.py --env CartPole-v1 --seed 42 --episodes 50 --model_dir models")
+    print("python evaluate_sqil.py --env HalfCheetah-v4 --seed 44 --episodes 50 --model_dir models")
+    print("python evaluate_sqil.py --env CartPole-v1 --seed 44 --episodes 50 --model_dir models")
     main()

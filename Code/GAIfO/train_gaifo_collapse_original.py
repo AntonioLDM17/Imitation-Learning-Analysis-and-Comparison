@@ -84,7 +84,7 @@ def main():
                         default="cartpole", help="Environment: 'cartpole' or 'halfcheetah'")
     parser.add_argument("--iterations", type=int, default=300,
                         help="Number of training iterations")
-    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--seed", type=int, default=44, help="Random seed")
     args = parser.parse_args()
 
     SEED = args.seed
@@ -255,5 +255,5 @@ def main():
 
 if __name__ == "__main__":
     print("Example usage:")
-    print("python train_gaifo.py --env halfcheetah --iterations 50 --seed 42")
+    print("python train_gaifo.py --env halfcheetah --iterations 50 --seed 44")
     main()

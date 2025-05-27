@@ -67,7 +67,7 @@ def main():
                         help="Gym environment name (e.g., HalfCheetah-v4 or CartPole-v1)")
     parser.add_argument("--demo_path", type=str, default=None,
                         help="Path to the demonstrations file (.npy)")
-    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--seed", type=int, default=4, help="Random seed")
     parser.add_argument("--episodes", type=int, default=500, help="Number of training episodes")
     parser.add_argument("--max_steps", type=int, default=1000, help="Maximum steps per episode")
     parser.add_argument("--batch_size", type=int, default=256, help="Batch size for updates")
@@ -202,9 +202,9 @@ def main():
 
 if __name__ == "__main__":
     print("Example usage for HalfCheetah:")
-    print("python train_sqil.py --env HalfCheetah-v4 --demo_path ../data/demonstrations/halfcheetah_demonstrations.npy --seed 42 --episodes 1000 --demo_episodes 50")
+    print("python train_sqil.py --env HalfCheetah-v4 --demo_path ../data/demonstrations/halfcheetah_demonstrations.npy --seed 44 --episodes 1000 --demo_episodes 50")
     print("Example usage for CartPole:")
-    print("python train_sqil.py --env CartPole-v1 --demo_path ../data/demonstrations/cartpole_demonstrations.npy --seed 42 --episodes 350 --demo_episodes 50")
+    print("python train_sqil.py --env CartPole-v1 --demo_path ../data/demonstrations/cartpole_demonstrations.npy --seed 44 --episodes 350 --demo_episodes 50")
     print("To view the training process, run:")
     print("tensorboard --logdir logs")
     main()

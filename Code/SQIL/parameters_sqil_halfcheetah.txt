@@ -2,7 +2,7 @@
 --demo_path: ./data/demonstrations/100/halfcheetah_demonstrations_100.npy
 --episodes: 1000
 --seed: 44
---max_steps: 10004
+--max_steps: 1000
 --batch_size: 256
 --update_every: 10
 --demo_episodes: 100

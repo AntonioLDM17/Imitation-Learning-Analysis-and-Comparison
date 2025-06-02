@@ -81,43 +81,7 @@ def main():
         verbose=1,
         tensorboard_log=LOG_DIR,
     )
-    """
-    policy_kwargs = dict(net_arch=[256, 256, 128])
-    learner = TRPO(
-        "MlpPolicy",
-        env,
-        learning_rate=3e-4,
-        batch_size=512,
-        cg_max_steps=20,
-        cg_damping=0.05,
-        line_search_shrinking_factor=0.8,
-        line_search_max_iter = 10,
-        target_kl=0.005,
-        n_critic_updates=10,
-        sub_sampling_factor=1,
-        n_steps=2048,  # Original 2048
-        gamma=0.99,
-        gae_lambda = 0.97,
-        seed=SEED,
-        verbose=1,
-        policy_kwargs=policy_kwargs,
-    )
-    """
-    """
-    learner = PPO(
-        "MlpPolicy",
-        env,
-        batch_size=512,
-        ent_coef=0.01,
-        learning_rate=3e-4,
-        gamma=0.95,
-        clip_range=0.1,
-        vf_coef=0.1,
-        seed=SEED,
-        verbose=1,
-        policy_kwargs=policy_kwargs,
-    )
-    """
+
     # SB3 logger
     sb3_logger = sb3_configure(LOG_DIR, ["stdout","tensorboard"])
     learner.set_logger(sb3_logger)
@@ -126,13 +90,6 @@ def main():
     il_logger = il_configure(LOG_DIR, ["stdout","tensorboard"])
 
     # Reward network (discriminator)
-    """
-    reward_net = BasicRewardNet(
-        observation_space=env.observation_space,
-        action_space=env.action_space,
-        normalize_input_layer=RunningNorm,
-    )
-    """
     reward_net = BasicRewardNet(
         observation_space=env.observation_space,
         action_space=env.action_space,
@@ -140,21 +97,6 @@ def main():
         normalize_input_layer=RunningNorm,
     )
 
-    """
-    gail_trainer = GAIL(
-        demonstrations=demonstrations,
-        demo_batch_size=1024, # Original 1024
-        gen_replay_buffer_capacity=512, # Original 512
-        n_disc_updates_per_round=16, # Original 8
-        venv=env,
-        gen_algo=learner,
-        reward_net=reward_net,
-        allow_variable_horizon=True,
-        init_tensorboard=True,
-        init_tensorboard_graph=False,
-        custom_logger=il_logger,
-    )
-    """
     # Instantiate GAIL trainer
     gail_trainer = GAIL(
         demonstrations=demonstrations,

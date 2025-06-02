@@ -1,0 +1,17 @@
+env: halfcheetah
+timesteps: 1000000
+seed: 44
+demo_episodes: 100
+rollout_length: 2048
+learner:
+  algorithm: TRPO
+  policy: MlpPolicy
+discriminator:
+  hidden_dim: 256
+  batch_size: 512
+  epochs: 20
+  learning_rate: 5.4868671601784924e-05
+  betas:
+  - 0.9
+  - 0.999
+  lambda_gp: 5.165201675071828

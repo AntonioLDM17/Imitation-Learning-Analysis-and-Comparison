@@ -1,0 +1,20 @@
+env: halfcheetah
+timesteps: 2000000
+seed: 44
+pre_interactions: 300000
+alpha: 0.0
+batch_size: 64
+demo_policy_epochs_map:
+  5: 212
+  10: 106
+  20: 71
+  50: 31
+  100: 17
+inverse_dynamics:
+  hidden_size: 256
+  epochs: 10
+  learning_rate: 0.001
+policy_network:
+  hidden_size: 64
+  epochs: 20
+  learning_rate: 0.001

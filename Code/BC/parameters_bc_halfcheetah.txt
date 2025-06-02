@@ -1,0 +1,5 @@
+--env: halfcheetah
+--timesteps: 2000000
+--seed: 44
+--demo_episodes: 100
+Los demás por defecto de la librería Imitation.

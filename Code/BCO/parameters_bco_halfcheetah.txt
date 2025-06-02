@@ -1,0 +1,46 @@
+--env: halfcheetah
+--timesteps: 2000000
+--seed: 44
+dict_demo_episodes_x_policy_epochs = {
+    5: 212,
+    10: 106,
+    20: 71,
+    50: 31,
+    100: 17
+}
+--pre_interactions: 300000
+--alpha: 0.0
+--inv_epochs: 10
+--inv_lr: 1e-3
+--policy_epochs: 20
+--policy_lr: 1e-3
+--batch_size: 64
+
+class InverseDynamicsModel(nn.Module):
+    def __init__(self, obs_dim, action_dim, discrete=True):
+        super(InverseDynamicsModel, self).__init__()
+        self.discrete = discrete
+        # bco.py  InverseDynamicsModel
+        hidden_size = 256          
+        self.net = nn.Sequential(
+            nn.Linear(obs_dim*2, hidden_size),
+            nn.ReLU(), nn.LayerNorm(hidden_size),
+            nn.Linear(hidden_size, hidden_size),
+            nn.ReLU(), nn.LayerNorm(hidden_size),
+            nn.Linear(hidden_size, action_dim)
+        )
+class PolicyNetwork(nn.Module):
+    def __init__(self, obs_dim, action_dim, discrete=True):
+        super(PolicyNetwork, self).__init__()
+        hidden_size = 64
+        self.discrete = discrete
+        self.net = nn.Sequential(
+            nn.Linear(obs_dim, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, action_dim)
+        )
+
+def train_inverse_model(model, dataloader, discrete=True, epochs=10, lr=1e-3, writer=None)
+def train_policy(policy_net, states, actions, discrete=True, epochs=20, lr=1e-3, batch_size=64, writer=None)

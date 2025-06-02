@@ -43,7 +43,7 @@ class DummyCallback(BaseCallback):
         pass
 
 # -----------------------------------------------------------------------------
-# Discriminator (unchanged)
+# Discriminator
 # -----------------------------------------------------------------------------
 class GAIfODiscriminator(nn.Module):
     def __init__(self, flat_obs_dim: int, hidden_dim: int = 256):
@@ -62,7 +62,7 @@ class GAIfODiscriminator(nn.Module):
         return self.net(x)
 
 # -----------------------------------------------------------------------------
-# Gradient‑penalty helper (unchanged)
+# Gradient‑penalty helper
 # -----------------------------------------------------------------------------
 
 def compute_gradient_penalty(

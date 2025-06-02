@@ -1,0 +1,29 @@
+gaifo_halfcheetah_100_2_disc_epochs20_batch_size512_lambda_gp5.165201675071828_disc_lr5.4868671601784924e-05_steps1001472
+--env: halfcheetah
+--steps: 1000000
+--seed: 44
+--demo_episodes: 100
+
+batch_size: 512
+disc_epochs: 20
+disc_lr: 5.4868671601784924e-05
+lambda_gp: 5.165201675071828
+disc_optimizer: optim.Adam(discriminator.parameters(), lr=disc_lr, betas=(0.9, 0.999))
+
+rollout_length: 2048
+
+class GAIfODiscriminator(nn.Module):
+    def __init__(self, flat_obs_dim: int, hidden_dim: int = 256):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(flat_obs_dim * 2, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, 1),
+            nn.Sigmoid(),  # output in (0, 1)
+        )
+
+    def forward(self, s: torch.Tensor, s_next: torch.Tensor) -> torch.Tensor:
+        x = torch.cat([s, s_next], dim=1)
+        return self.net(x)

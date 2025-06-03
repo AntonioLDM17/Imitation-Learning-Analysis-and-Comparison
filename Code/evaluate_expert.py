@@ -99,5 +99,5 @@ def main():
 
 if __name__ == "__main__":
     print("Example usage:")
-    print("python evaluate_expert.py --env halfcheetah --policy sac --n_episodes 100")
+    print("python evaluate_expert.py --env halfcheetah --policy sac --n_episodes 100 --timesteps 2000000")
     main()

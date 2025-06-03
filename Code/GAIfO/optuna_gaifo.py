@@ -94,7 +94,7 @@ def objective(trial: optuna.Trial):
     # Training budget *in environment steps* (was iterations)
     total_steps   = trial.suggest_categorical(
         "total_steps",
-        [ 489 * rollout_length])    # 1 001 472 steps
+        [ 489 * rollout_length * 2])    # 1 001 472 * 2 = 2 002 944 steps
 
     # 2) Fixed settings (derived from CLI) ----------------------------- #
     SEED         = 44  #if you want to use different seeds

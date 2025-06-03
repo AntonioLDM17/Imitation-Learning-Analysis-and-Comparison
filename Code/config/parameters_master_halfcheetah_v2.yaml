@@ -201,15 +201,11 @@ airl:
   demo_batch_size: 2048
   demo_episodes: 100
   learner:
-    algorithm: PPO
+    algorithm: TRPO
     policy: MlpPolicy
     batch_size: 128
-    ent_coef: 0.01
     learning_rate: 0.001
     gamma: 0.95
-    clip_range: 0.1
-    vf_coef: 0.1
-    n_epochs: 5
   reward_net:
     type: BasicShapedRewardNet
     reward_hid_sizes:

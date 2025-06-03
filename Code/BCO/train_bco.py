@@ -144,7 +144,7 @@ def main():
     # ----------------------- TensorBoard writer --------------------------- #
     log_dir = (
         f"logs/bco_{args.env}_demo{args.demo_episodes}"
-        f"_alpha{args.alpha}_iter{args.num_iterations}_seed{args.seed}_GLOBAL"
+        f"_alpha{args.alpha}_iter{args.num_iterations}_seed{args.seed}_OPTUNA"
     )
     os.makedirs(log_dir, exist_ok=True)
     writer = SummaryWriter(log_dir)
@@ -310,7 +310,7 @@ def main():
     # 6) SAVE MODEL + FINAL EVALUATION
     # ===================================================================== #
     os.makedirs("models", exist_ok=True)
-    model_dir = f"bco_{args.env}_{args.demo_episodes}_alpha{args.alpha}iter{args.num_iterations}_seed{args.seed}_GLOBAL"
+    model_dir = f"bco_{args.env}_{args.demo_episodes}_alpha{args.alpha}iter{args.num_iterations}_seed{args.seed}_OPTUNA"
     os.makedirs(os.path.join("models", model_dir), exist_ok=True)
     model_name = (
         f"bco_{args.env}_alpha{args.alpha}_iter{args.num_iterations}"

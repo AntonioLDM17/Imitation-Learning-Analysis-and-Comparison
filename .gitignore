@@ -19,3 +19,4 @@ Code/logs
 /Code/SQIL/output
 /Code/logs
 /.venv
+/Code/BCO/optuna_logs

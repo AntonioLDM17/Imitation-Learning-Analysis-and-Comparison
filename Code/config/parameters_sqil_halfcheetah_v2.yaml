@@ -1,0 +1,63 @@
+env: HalfCheetah-v4
+demo_path: ./data/demonstrations/100/halfcheetah_demonstrations_100.npy
+seed: 44
+episodes: 2000
+max_steps: 1000
+update_every: 10
+demo_episodes: 100
+agent:
+  action_range: 1.0
+  actor_hidden: 256
+  critic_hidden: 256
+  actor_lr: 0.0003
+  critic_lr: 0.0003
+  alpha_lr: 0.0001
+  gamma: 0.99
+  tau: 0.005
+  target_entropy: null
+  demo_buffer_capacity: 100000
+  agent_buffer_capacity: 100000
+  batch_size: 256
+actor:
+  hidden_dim: 256
+  log_std_min: -20
+  log_std_max: 2
+critic:
+  hidden_dim: 256
+architecture:
+  actor_network:
+    type: MLP
+    hidden_layers:
+    - 256
+    - 256
+    activation: ReLU
+    head: "Gaussian (μ, σ) with tanh squash"
+    log_std_range:
+    - -20
+    - 2
+  critic_network:
+    type: DoubleQ
+    hidden_layers:
+    - 256
+    - 256
+    activation: ReLU
+    output: scalar Q-value
+    note: Two independent Q networks (soft double Q-learning)
+training:
+  method: Soft Q Imitation Learning (SQIL)
+  rl_algorithm: "SAC-like off policy"
+  hyperparams:
+    actor_lr: 0.0003
+    critic_lr: 0.0003
+    alpha_lr: 0.0001
+    gamma: 0.99
+    tau: 0.005
+    batch_size: 256
+    target_entropy: null
+    update_every: 10
+  buffers:
+    demo_buffer_capacity: 100000
+    agent_buffer_capacity: 100000
+  reward_scheme: Demonstrations rewarded with 1, agent data with 0
+  total_episodes: 2000
+  max_steps_per_episode: 1000

@@ -1,0 +1,49 @@
+env: halfcheetah
+timesteps: 2000000
+seed: 44
+pre_interactions: 300000
+alpha: 0.0
+batch_size: 64
+demo_policy_epochs_map:
+  5: 212
+  10: 106
+  20: 71
+  50: 31
+  100: 17
+inverse_dynamics:
+  hidden_size: 256
+  epochs: 10
+  learning_rate: 0.001
+policy_network:
+  hidden_size: 64
+  epochs: 20
+  learning_rate: 0.001
+architecture:
+  policy_network:
+    type: MLP
+    hidden_layers:
+    - 64
+    - 64
+    activation: ReLU
+    output: action_dim
+  inverse_dynamics:
+    type: MLP
+    hidden_layers:
+    - 256
+    - 256
+    activation: ReLU
+    layer_norm: true
+    input: concat(s, s_next)
+    output: action_dim
+training:
+  method: Behavioral Cloning from Observation
+  optimizer: Adam
+  policy_lr: 0.001
+  inverse_dynamics_lr: 0.001
+  batch_size: 64
+  loss:
+    discrete: CrossEntropy
+    continuous: MSE
+  pre_interactions: 300000
+  alpha: 0.0
+  num_iterations: 0

@@ -1,0 +1,58 @@
+env: halfcheetah
+timesteps: 2000000
+seed: 44
+demo_episodes: 100
+rollout_length: 2048
+learner:
+  algorithm: TRPO
+  policy: MlpPolicy
+discriminator:
+  hidden_dim: 256
+  batch_size: 512
+  epochs: 20
+  learning_rate: 5.4868671601784924e-05
+  betas:
+  - 0.9
+  - 0.999
+  lambda_gp: 5.165201675071828
+architecture:
+  policy_network:
+    type: MLP
+    hidden_layers:
+    - 64
+    - 64
+    activation: Tanh
+    head: "Gaussian (μ, σ) with tanh squash"
+  value_network:
+    shared_with_policy: false
+    hidden_layers:
+    - 64
+    - 64
+    activation: Tanh
+  discriminator:
+    type: GAIfODiscriminator
+    input: concat(s, s_next)
+    hidden_layers:
+    - 256
+    - 256
+    activation: ReLU
+    output: Sigmoid
+    gradient_penalty_lambda: 5.165201675071828
+training:
+  method: Generative Adversarial Imitation from Observation (GAIfO)
+  rl_algorithm: TRPO
+  trpo_hyperparams:
+    cg_max_steps: default
+    gae_lambda: default
+    gamma: default
+    step_size: default
+  discriminator:
+    batch_size: 512
+    epochs: 20
+    learning_rate: 5.4868671601784924e-05
+    betas:
+    - 0.9
+    - 0.999
+    lambda_gp: 5.165201675071828
+  rollout_length: 2048
+  total_timesteps: 2000000

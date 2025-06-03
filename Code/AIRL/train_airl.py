@@ -75,8 +75,8 @@ def main():
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     DEMO_DIR = os.path.join(BASE_DIR, os.pardir, "data", "demonstrations", str(args.demo_episodes))
     DEMO_FILE = f"{args.env}_demonstrations_{args.demo_episodes}.npy"
-    MODELS_DIR = os.path.join(BASE_DIR, "models", f"airl_{args.env}_{args.demo_episodes}_2M_seed_{SEED}")
-    LOG_DIR = os.path.join(BASE_DIR, "logs", f"airl_{args.env}_{args.demo_episodes}_2M_seed_{SEED}")
+    MODELS_DIR = os.path.join(BASE_DIR, "models", f"airl_{args.env}_{args.demo_episodes}_TRPO_2M_seed_{SEED}")
+    LOG_DIR = os.path.join(BASE_DIR, "logs", f"airl_{args.env}_{args.demo_episodes}_TRPO_2M_seed_{SEED}")
     os.makedirs(MODELS_DIR, exist_ok=True)
     os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -98,6 +98,7 @@ def main():
     )
 
     # SB3 PPO generator with TensorBoard logging
+    """
     learner = PPO(
         "MlpPolicy",
         env,
@@ -112,6 +113,17 @@ def main():
         verbose=1,
         tensorboard_log=LOG_DIR,
     )
+    """
+    learner = TRPO(        
+        "MlpPolicy",
+        env,
+        batch_size=128, # Original 64
+        learning_rate=1e-3, # Original 5e-4
+        gamma=0.95,
+        seed=SEED,
+        verbose=1,
+        tensorboard_log=LOG_DIR,
+    )
 
     # Configure SB3 logger
     sb3_logger = sb3_configure(LOG_DIR, ["stdout", "tensorboard"])
@@ -121,13 +133,6 @@ def main():
     il_logger = il_configure(LOG_DIR, ["stdout", "tensorboard"])
 
     # Reward network (discriminator)
-    """
-    reward_net = BasicShapedRewardNet(
-        observation_space=env.observation_space,
-        action_space=env.action_space,
-        normalize_input_layer=RunningNorm,
-    )
-    """
     reward_net = BasicShapedRewardNet(
         observation_space=env.observation_space,
         action_space=env.action_space,

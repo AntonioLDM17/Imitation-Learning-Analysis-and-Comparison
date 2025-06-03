@@ -1,4 +1,0 @@
-env: halfcheetah
-timesteps: 2000000
-seed: 44
-demo_episodes: 100

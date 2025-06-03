@@ -1,0 +1,79 @@
+env: halfcheetah
+timesteps: 2000000
+seed: 44
+demo_batch_size: 2048
+demo_episodes: 100
+learner:
+  algorithm: PPO
+  policy: MlpPolicy
+  batch_size: 128
+  ent_coef: 0.01
+  learning_rate: 0.001
+  gamma: 0.95
+  clip_range: 0.1
+  vf_coef: 0.1
+  n_epochs: 5
+reward_net:
+  type: BasicShapedRewardNet
+  reward_hid_sizes:
+  - 128
+  - 128
+  potential_hid_sizes:
+  - 128
+  - 128
+  - 64
+  use_state: true
+  use_action: true
+  use_next_state: true
+  use_done: false
+  discount_factor: 0.99
+  normalize_input_layer: RunningNorm
+airl_trainer:
+  gen_replay_buffer_capacity: 1024
+  n_disc_updates_per_round: 24
+  allow_variable_horizon: true
+architecture:
+  policy_network:
+    type: MLP
+    hidden_layers:
+    - 64
+    - 64
+    activation: ReLU
+    head: "Gaussian (μ, σ) with tanh squash"
+  value_network:
+    shared_with_policy: false
+    hidden_layers:
+    - 64
+    - 64
+    activation: ReLU
+  reward_network:
+    type: BasicShapedRewardNet
+    reward_hid_sizes:
+    - 128
+    - 128
+    potential_hid_sizes:
+    - 128
+    - 128
+    - 64
+    activation: ReLU
+    normalize_input_layer: RunningNorm
+    use_state: true
+    use_action: true
+    use_next_state: true
+    use_done: false
+training:
+  method: Adversarial Imitation Learning - AIRL
+  rl_algorithm: PPO
+  ppo_hyperparams:
+    batch_size: 128
+    learning_rate: 0.001
+    ent_coef: 0.01
+    gamma: 0.95
+    clip_range: 0.1
+    vf_coef: 0.1
+    n_epochs: 5
+  discriminator:
+    demo_batch_size: 2048
+    gen_replay_buffer_capacity: 1024
+    n_disc_updates_per_round: 24
+  total_timesteps: 2000000

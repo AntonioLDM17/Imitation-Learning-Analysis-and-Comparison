@@ -1,6 +1,6 @@
+#!/usr/bin/env python
 import os, glob, numpy as np, matplotlib.pyplot as plt
 from collections import OrderedDict
-from matplotlib.lines import Line2D
 from tensorboard.backend.event_processing import event_accumulator as ea
 
 LOG_ROOT = "logs_finales"
@@ -16,10 +16,10 @@ TAGS = {
 
 algorithms  = ["bc", "bco", "gail", "gaifo", "airl", "sqil"]
 traj_order  = [100, 50, 20, 10, 5]
-colors      = {100:"#1f77b4", 50:"#ff7f0e", 20:"#2ca02c", 10:"#d62728", 5:"#9467bd"}
+colors      = {100:"#1f77b4", 50:"#ff7f0e", 20:"#2ca02c",
+               10:"#d62728",  5:"#9467bd"}
 HORIZON     = 2_000_000
-SPANS       = [125_000]           # spans a probar
-EXPERT_REW  = 6_000                              # nivel experto
+EXPERT_REW  = 6_000            # línea de referencia
 
 # ---------------- lectura de TensorBoard ----------------
 def events(run):
@@ -30,7 +30,7 @@ def read(ev_file, tag):
     if tag not in acc.Tags()["scalars"]:
         return None, None
     data = acc.Scalars(tag)
-    s = np.fromiter((d.step for d in data), dtype=float)
+    s = np.fromiter((d.step  for d in data), dtype=float)
     v = np.fromiter((d.value for d in data), dtype=float)
     return s, v
 
@@ -56,40 +56,42 @@ def best(run, tag):
 def load(run, algo, tag):
     return merge_bco(run, tag) if algo == "bco" else best(run, tag)
 
-# ---------------- suavizado ----------------
-def smooth_by_steps(steps, values, span):
-    if len(values) < 3:
-        return steps, values
-    step_size = np.median(np.diff(steps))
-    win = max(int(span / step_size), 3)
-    kernel = np.ones(win) / win
-    pad_L, pad_R = win // 2, win - win // 2 - 1
-    padded = np.pad(values, (pad_L, pad_R), mode="edge")
-    smooth = np.convolve(padded, kernel, mode="valid")
-    return steps, smooth
+# ---------------- suavizado EMA ----------------
+def smooth_ema(values, beta):
+    smoothed = np.empty_like(values, dtype=float)
+    smoothed[0] = values[0]
+    for t in range(1, len(values)):
+        smoothed[t] = beta * smoothed[t-1] + (1.0 - beta) * values[t]
+    return smoothed
 
 # ---------------- generación de mosaico ----------------
-def build_mosaic(span):
-    # ❶ figure de 2×3 (en vez de 1×6)  ────────────────
+def build_mosaic():
     fig, axs = plt.subplots(2, 3, figsize=(16, 6), sharex=True, sharey=True)
-    axs = axs.ravel()            # aplanamos para indexar 0‥5
+    axs = axs.ravel()
 
     for idx, algo in enumerate(algorithms):
         ax, tag = axs[idx], TAGS[algo]
 
-        # línea del experto (una sola etiqueta en el primer subplot)
-        label_exp = "Experto" if idx == 0 else "_nolegend_"
-        ax.axhline(EXPERT_REW, color="gold", ls="--", lw=1.0, label=label_exp)
+        # línea del experto
+        ax.axhline(EXPERT_REW, color="gold", ls="--", lw=1.0,
+                   label="Experto" if idx == 0 else "_nolegend_")
+
+        # parámetros dependientes del algoritmo
+        beta      = 0.9 if algo == "sqil" else 0.6
+        alpha_raw = 0.2 if algo == "sqil" else 0.4
+        lw_raw    = 0.4 if algo == "sqil" else 0.5
 
         for n in traj_order:
             run_dir = os.path.join(LOG_ROOT, f"{algo}_halfcheetah_{n}")
-            steps, rew = load(run_dir, algo, tag)
+            steps, rew_raw = load(run_dir, algo, tag)
             if steps is None:
                 continue
 
-            steps = steps * (HORIZON / steps[-1])
-            steps, rew = smooth_by_steps(steps, rew, span)
-            ax.plot(steps, rew, color=colors[n], label=str(n))
+            steps = steps * (HORIZON / steps[-1])      # escala al mismo horizonte
+            rew   = smooth_ema(rew_raw, beta)
+
+            ax.plot(steps, rew_raw, color=colors[n], alpha=alpha_raw, lw=lw_raw)
+            ax.plot(steps, rew,      color=colors[n], label=str(n))
 
         ax.set_title(algo.upper(), fontsize=9)
         ax.tick_params(labelsize=7)
@@ -112,19 +114,16 @@ def build_mosaic(span):
                title="Trayectorias", ncol=6, fontsize=7,
                loc="lower center", bbox_to_anchor=(0.5, -0.1))
 
-    fig.subplots_adjust(bottom=0.1)   # deja hueco extra para la leyenda
+    fig.subplots_adjust(bottom=0.12)
     plt.tight_layout()
     plt.show()
 
     out_dir = os.path.join("figures", "mosaics")
     os.makedirs(out_dir, exist_ok=True)
-    fname = os.path.join(out_dir, f"mosaic_span{span//1000}k_expert_2x3_-0_1.png")
+    fname = os.path.join(out_dir, "mosaic_ema_2x3.png")
     fig.savefig(fname, dpi=300, bbox_inches="tight")
     print("Guardado:", fname)
 
-
 # ---------------- ejecución ----------------
 if __name__ == "__main__":
-    for sp in SPANS:
-        print(f"\n=== Generando mosaico con span = {sp:,} pasos ===")
-        build_mosaic(sp)
+    build_mosaic()

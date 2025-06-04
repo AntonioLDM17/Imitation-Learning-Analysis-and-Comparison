@@ -88,7 +88,7 @@ def heatmap_percent(df, outdir):
 
     plt.figure(figsize=FIGSIZE)
     sns.heatmap(pivot, annot=True, fmt=".0f", cmap=HEAT_CMAP,
-                vmin=50, vmax=120, cbar_kws={"label": "% experto"})
+                vmin=40, vmax=110, cbar_kws={"label": "% experto"})
     plt.title("Heat-map – Recompensa media normalizada al experto")
     plt.ylabel(""); plt.xlabel("Nº trayectorias")
 
@@ -113,14 +113,14 @@ def errorbars_std(df, outdir):
 
         ax.errorbar(xs, ys, yerr=yerr,
                     marker="o", linestyle="-", color="black",
-                    ecolor="lightgray", elinewidth=1.5, capsize=4)
+                    ecolor="gray", elinewidth=2, capsize=4)
         ax.set_title(alg, fontsize=10)
         ax.set_xticks(TRAJ_ORDER)
         ax.grid(alpha=0.3)
         if idx // 3 == 1: ax.set_xlabel("Trayectorias")
         if idx % 3 == 0:  ax.set_ylabel("Recompensa media")
 
-    plt.suptitle("Anexo B – Media ± std (100 episodios)", y=0.94)
+    plt.suptitle("Recompensa Media ± std (100 episodios)", y=0.94)
     plt.tight_layout(rect=[0, 0.05, 1, 0.93])
 
     os.makedirs(outdir, exist_ok=True)

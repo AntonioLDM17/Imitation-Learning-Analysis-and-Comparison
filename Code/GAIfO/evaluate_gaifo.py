@@ -59,7 +59,3 @@ if __name__ == "__main__":
     print("Example usage:")
     print("python evaluate_gaifo.py --env halfcheetah --model_path models/gaifo_halfcheetah.zip --n_episodes 20 --seed 44")
     main()
-    # Best model: gaifo_halfcheetah_2_disc_epochs10_batch_size256_lambda_gp1.660941233998641_disc_lr3.989020006157259e-05_iterations300
-    # Evaluation over 50 episodes:
-    # Mean reward: 3417.55
-    # Standard deviation: 620.04

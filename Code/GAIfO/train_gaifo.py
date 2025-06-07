@@ -115,7 +115,7 @@ def main() -> None:
     parser.add_argument(
         "--steps",
         type=int,
-        default=498 * 2048,  # 1 001 472 steps
+        default=498 * 2048*2,  # 1 001 472 steps * 2 (for 2M total steps)
         help="Total environment interaction steps to train.",
     )
     parser.add_argument("--seed", type=int, default=44, help="Random seed")
@@ -190,7 +190,7 @@ def main() -> None:
     total_steps_target = args.steps
     total_steps_so_far = 0
     num_iterations = math.ceil(total_steps_target / (rollout_length * n_envs))
-    gp_lambda = 5.165201675071828 # 1.660941233998641  # gradient‑penalty coefficient (unchanged)
+    gp_lambda = 5.165201675071828 # gradient‑penalty coefficient (unchanged)
 
     for itr in range(num_iterations):
         # --------------------------------------------------------------
@@ -283,5 +283,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     print("Example usage:")
-    print("python train_gaifo.py --env halfcheetah --steps 1000000 --seed 44 --demo_episodes 50")
+    print("python train_gaifo.py --env halfcheetah --steps 2000000 --seed 44 --demo_episodes 50")
     main()

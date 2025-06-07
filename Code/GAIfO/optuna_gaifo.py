@@ -1,14 +1,3 @@
-"""
-optuna_gaifo.py  ·  Hyper-parameter search for GAIfO with Optuna
----------------------------------------------------------------
-This version uses **total environment steps** as the training budget
-instead of the former “num_iterations”.  All logs therefore use the
-global step counter so that TensorBoard’s x-axis is in *real* env-steps.
-
-Only the step/iteration-related code has been changed; all GAIfO logic,
-hyper-parameters, Optuna integration, etc. remain untouched.
-"""
-
 import os, sys, types, argparse, math          # math is needed for ceil()
 import numpy as np
 import gymnasium as gym

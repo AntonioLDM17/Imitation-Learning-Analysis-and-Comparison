@@ -212,8 +212,6 @@ def main():
         Run evaluation every *EVAL_INTERVAL* BC samples.
         Log all metrics with the *global* step counter.
         """
-        """if bc_steps % EVAL_INTERVAL != 0:
-            return # Skip evaluation if not due"""
         nonlocal next_eval, env_steps, bc_steps
         gs = global_steps()
         if bc_steps < next_eval:
@@ -310,7 +308,7 @@ def main():
     # 6) SAVE MODEL + FINAL EVALUATION
     # ===================================================================== #
     os.makedirs("models", exist_ok=True)
-    model_dir = f"bco_{args.env}_{args.demo_episodes}_alpha{args.alpha}iter{args.num_iterations}_seed{args.seed}_OPTUNA"
+    model_dir = f"bco_{args.env}_{args.demo_episodes}_alpha{args.alpha}iter{args.num_iterations}_seed{args.seed}"
     os.makedirs(os.path.join("models", model_dir), exist_ok=True)
     model_name = (
         f"bco_{args.env}_alpha{args.alpha}_iter{args.num_iterations}"

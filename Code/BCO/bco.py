@@ -68,7 +68,7 @@ def collect_exploration_data(env, num_interactions):
     s_list, s_next_list, a_list = [], [], []
     obs, _ = env.reset()
     total_steps = 0
-
+    # Collect data until we reach the specified number of interactions
     while total_steps < num_interactions:
         action = env.action_space.sample()
         s = np.array(obs)
@@ -80,6 +80,7 @@ def collect_exploration_data(env, num_interactions):
         total_steps += 1
         if done or truncated:
             obs, _ = env.reset()
+    # Ensure the lists are numpy arrays
     return np.array(s_list), np.array(s_next_list), np.array(a_list)
 
 # Function to create a DataLoader from data
@@ -93,8 +94,9 @@ def create_dataloader(s, s_next, a, batch_size=64):
 def train_inverse_model(model, dataloader, discrete=True, epochs=10, lr=1e-3, writer=None):
     optimizer = optim.Adam(model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss() if discrete else nn.MSELoss()
-
+    # Ensure model is in training mode
     model.train()
+    # Iterate over epochs
     for epoch in range(epochs):
         losses = []
         for s, s_next, a in dataloader:
@@ -138,7 +140,7 @@ def train_policy(policy_net, states, actions, discrete=True, epochs=20, lr=1e-3,
     dataset = TensorDataset(torch.tensor(states, dtype=torch.float32),
                             torch.tensor(actions))
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-
+    # Iterate over epochs
     for epoch in range(epochs):
         losses = []
         for s, a in dataloader:
@@ -164,7 +166,7 @@ def collect_policy_data(policy_net, env, num_interactions, discrete):
     total_steps = 0
     while total_steps < num_interactions:
         state = np.array(obs)
-        s_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
+        s_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0) # Add batch dimension
         with torch.no_grad():
             output = policy_net(s_tensor)
             if discrete:

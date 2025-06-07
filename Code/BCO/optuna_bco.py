@@ -14,12 +14,12 @@ import sys
 from datetime import datetime
 from typing import Tuple, Union
 
-import numpy as np              #  ←  para contar transiciones
+import numpy as np
 
 ROOT   = pathlib.Path(__file__).resolve().parent
 DATA   = ROOT.parent / "data" / "demonstrations"
 TRAIN  = ROOT / "train_bco.py"
-PYTHON = sys.executable         # intérprete activo
+PYTHON = sys.executable         # active Python interpreter
 
 STEP_RE   = re.compile(r"Global steps\s*:\s*([\d,]+)")
 REWARD_RE = re.compile(r"Final reward\s*:\s*([-\d\.]+)")
@@ -30,27 +30,27 @@ MIN_STEPS    = TARGET_STEPS - TOLERANCE
 MAX_STEPS    = TARGET_STEPS + TOLERANCE
 
 
-# ---------------------------- helpers ------------------------------------ #
+# Count the number of transitions in demonstration episodes
 def count_demo_transitions(env: str, demo_episodes: int) -> int:
     """
-    Devuelve N (nº de transiciones) del archivo de demostraciones.
-    El formato de los ficheros es el mismo que usa train_bco.py
+    Returns the total number of transitions in the demonstration episodes
+    for the specified environment and number of episodes.
     """
     demo_path = DATA / str(demo_episodes) / f"{env}_demonstrations_{demo_episodes}.npy"
     if not demo_path.is_file():
-        # No existe; devolvemos un valor por defecto grande para no colarnos
+        # Does not exist, return a default value
         return 110_000
     arr = np.load(demo_path, allow_pickle=True)
-    # El loader puede devolver una lista de Trajectory o ndarray
+    # The array can be a numpy array of objects (Trajectories)
     if isinstance(arr, np.ndarray) and arr.dtype == object:
         arr = arr.tolist()
     if isinstance(arr, list):
-        # cada elemento tiene atributo .obs
+        # each element has an 'obs' attribute (TrajectoryWithRew)
         total = 0
         for traj in arr:
             total += len(traj.obs) if hasattr(traj, "obs") else len(traj)
         return total
-    # ndarray plano (estados)
+    # return the states count
     return len(arr)
 
 
@@ -65,7 +65,7 @@ def print_steps_summary(
     bc_steps: int,
     total_steps: int
 ) -> None:
-    """Imprime el bloque formateado de ‘STEPS SUMMARY’."""
+    """Prints the summary of steps and parameters."""
     fmt_int = lambda x: f"{x:,}".replace(",", " ")
     print("=== STEPS SUMMARY ===")
     print(f"  N (demo transitions)       = {fmt_int(N)}")
@@ -81,8 +81,7 @@ def print_steps_summary(
 
 def run_train_bco(args_dict: dict) -> Tuple[int, float]:
     """
-    Lanza train_bco.py con los argumentos de args_dict y devuelve:
-    (global_steps, final_reward).
+    Executes the train_bco.py script with the provided arguments.
     """
     cmd = [PYTHON, str(TRAIN)]
     for k, v in args_dict.items():
@@ -102,21 +101,21 @@ def run_train_bco(args_dict: dict) -> Tuple[int, float]:
     (ROOT / "optuna_logs" / f"log_{ts}.txt").write_text(log_txt)
 
     if proc.returncode != 0:
-        raise RuntimeError(f"train_bco terminó con código {proc.returncode}")
+        raise RuntimeError(f"train_bco ended with code {proc.returncode}")
 
     m_steps = STEP_RE.search(log_txt)
     m_rew   = REWARD_RE.search(log_txt)
     if not m_steps or not m_rew:
-        raise RuntimeError("No se encontraron métricas en la salida.")
+        raise RuntimeError("No metrics found in output log.")
 
     steps  = int(m_steps.group(1).replace(",", ""))
     reward = float(m_rew.group(1))
     return steps, reward
 
 
-# --------------------------- Optuna objective --------------------------- #
+# Optuna objective function
 def objective(trial: optuna.Trial) -> float:
-    # ---------- sugerencia de hp ----------
+    # Hiperparameters to optimize
     pre_inter   = trial.suggest_int("pre_interactions", 50_000, 300_000, step=25_000)
     alpha       = trial.suggest_float("alpha", 0.0, 0.5, step=0.05)
     iterations  = trial.suggest_int("num_iterations", 0, 4)
@@ -125,9 +124,9 @@ def objective(trial: optuna.Trial) -> float:
     it_inv_ep   = trial.suggest_int("iter_inv_epochs", 2, 10)
     it_pol_ep   = trial.suggest_int("iter_policy_epochs", 4, 20)
     pol_lr      = trial.suggest_float("policy_lr", 5e-4, 3e-3, log=True)
-    demo_eps    = 100   # Fijamos 100 demos (igual que ejemplo)
+    demo_eps    = 100   # Fixed for all trials
 
-    # ---------- cálculo previo ----------
+    # Previous steps computation
     N = count_demo_transitions("halfcheetah", demo_eps)
 
     env_steps = int(pre_inter * (1 + alpha * iterations))
@@ -138,13 +137,13 @@ def objective(trial: optuna.Trial) -> float:
                         pol_epochs, it_pol_ep,
                         env_steps, bc_steps, total_est)
 
-    # ---------- constraint ----------
+    # Timesteps constraint
     if not (MIN_STEPS <= total_est <= MAX_STEPS):
         raise optuna.exceptions.TrialPruned(
             f"Previstos {total_est} pasos -> fuera de rango [{MIN_STEPS}, {MAX_STEPS}]"
         )
 
-    # ----------  lanzar entrenamiento ----------
+    # Args for train_bco.py
     args = dict(
         env="halfcheetah",
         pre_interactions = pre_inter,
@@ -158,7 +157,6 @@ def objective(trial: optuna.Trial) -> float:
         demo_episodes    = demo_eps,
         seed             = 44
     )
-
     try:
         steps_done, reward = run_train_bco(args)
     except Exception as exc:
@@ -168,13 +166,12 @@ def objective(trial: optuna.Trial) -> float:
     return reward
 
 
-# ------------------------------- main ----------------------------------- #
 if __name__ == "__main__":
     study = optuna.create_study(direction="maximize",
                                 study_name="BCO_hypersearch")
     study.optimize(objective, n_trials=300)
 
-    print("\n========== MEJOR RESULTADO ==========")
+    print("\n========== BEST RESULT ==========")
     print("Reward :", study.best_value)
     best = study.best_trial
     print("Steps previstos:", best.user_attrs.get("steps", "–"))

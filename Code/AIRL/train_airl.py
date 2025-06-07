@@ -36,7 +36,7 @@ from gym.wrappers import TimeLimit, RecordEpisodeStatistics
 class NoDone(gym.Wrapper):
   def step(self, a):
     obs, r, done, info = super().step(a)
-    # Si es un truncamiento por TimeLimit, lo dejamos; en otro caso lo ignoramos:
+    # If the environment has a 'TimeLimit' wrapper, it will return 'done' as True when the episode ends.
     if info.get("TimeLimit.truncated", False):
       return obs, r, True, info
     else:
@@ -97,23 +97,7 @@ def main():
         post_wrappers=[lambda e, _: RolloutInfoWrapper(e)],
     )
 
-    # SB3 PPO generator with TensorBoard logging
-    """
-    learner = PPO(
-        "MlpPolicy",
-        env,
-        batch_size=128, # Original 64
-        ent_coef=0.01,
-        learning_rate=1e-3, # Original 5e-4
-        gamma=0.95,
-        clip_range=0.1,
-        vf_coef=0.1,
-        n_epochs=5,
-        seed=SEED,
-        verbose=1,
-        tensorboard_log=LOG_DIR,
-    )
-    """
+    # TRPO learner
     learner = TRPO(        
         "MlpPolicy",
         env,
@@ -145,8 +129,7 @@ def main():
         discount_factor=0.99,
         normalize_input_layer=RunningNorm,
     )
-    # reward_net = NormalizedRewardNet(reward_net, normalize_input_layer=RunningNorm)
-    # Instantiate AIRL trainer with HierarchicalLogger
+    # Instantiate AIRL trainer 
     airl_trainer = AIRL(
         demonstrations=demonstrations,
         demo_batch_size=args.demo_batch_size,

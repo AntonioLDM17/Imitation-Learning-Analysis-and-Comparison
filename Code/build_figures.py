@@ -151,6 +151,93 @@ def errorbars_std(df, outdir):
     plt.savefig(os.path.join(outdir, "errorbars_media_std.png"),
                 dpi=300, bbox_inches="tight")
     plt.close()
+    
+def combined_heatmap_errorbars(df, outdir):
+    """
+    Dibuja en una sola figura, a la izquierda el heatmap de % experto
+    y a la derecha el grid de Error-bars ± std, uno al lado del otro.
+    """
+    # --- Datos para el heatmap ---
+    mask_exp  = df["algoritmo"].str.contains("EXPERT")
+    expert_mu = df.loc[mask_exp].set_index("env")["media"].to_dict()
+    df2 = df.loc[~mask_exp].copy()
+    df2["% expert"] = df2.apply(
+        lambda r: 100 * r["media"] / expert_mu[r["env"]], axis=1)
+    pivot = (df2
+             .pivot(index="algoritmo", columns="trayectorias", values="% expert")
+             .reindex(index=ALGS_ORDER, columns=TRAJ_ORDER))
+
+    # --- Datos para los errorbars ± std ---
+    df_err = df.loc[~df["algoritmo"].str.contains("EXPERT")].copy()
+
+    # --- Figura combinada ---
+    fig = plt.figure(figsize=FIGSIZE)
+    # reducimos la proporción de la columna del heatmap de 3 a 2
+    gs = fig.add_gridspec(2, 4,
+                          width_ratios=[2, 1, 1, 1],
+                          wspace=0.25, hspace=0.3)
+
+    # Heatmap en la columna 0
+    ax0 = fig.add_subplot(gs[:, 0])
+    sns.heatmap(pivot, annot=True, fmt=".0f", cmap=HEAT_CMAP,
+                vmin=40, vmax=110,
+                cbar_kws={
+                  "label": "% experto",
+                  "shrink": 0.7,     # barra más pequeña
+                  "pad": 0.02       # menos espacio entre heatmap y cbar
+                },
+                ax=ax0)
+    ax0.set_title("Heat-map – Recompensa media normalizada al experto")
+    ax0.set_xlabel("Nº trayectorias")
+    ax0.set_ylabel("")
+    # rotamos y centramos las etiquetas
+    ax0.set_xticklabels(TRAJ_ORDER, rotation=0, ha="center")
+
+    # Error-bars ± std en grid 2×3
+    axes = []
+    for idx, alg in enumerate(ALGS_ORDER):
+        row = idx // 3
+        col = (idx % 3) + 1
+        ax = fig.add_subplot(gs[row, col])
+
+        sub = (df_err.query("algoritmo == @alg")
+                   .set_index("trayectorias")
+                   .reindex(TRAJ_ORDER))
+
+        label_exp = "Experto" if idx == 0 else "_nolegend_"
+        ax.axhline(EXPERT_Y, ls="--", lw=1, color="gold", label=label_exp)
+
+        xs, ys, yerr = sub.index.values, sub["media"].values, sub["std"].values
+        ax.errorbar(xs, ys, yerr=yerr,
+                    marker="o", linestyle="-",
+                    color="black", ecolor="gray",
+                    elinewidth=2, capsize=4)
+
+        ax.set_title(alg, fontsize=10)
+        ax.set_xticks(TRAJ_ORDER)
+        ax.grid(alpha=0.3)
+        if row == 1: ax.set_xlabel("Trayectorias")
+        if col == 1: ax.set_ylabel("Recompensa media")
+        axes.append(ax)
+
+        # Fijamos una escala uniforme de 0 a ~6 163 (2 000 pasos), y ticks en 0,2000,4000,6000
+        y_max = EXPERT_Y * 1.02
+        for ax in axes:
+            ax.set_ylim(0, y_max)
+            ax.set_yticks([0, 2000, 4000, 6000])
+
+
+    plt.suptitle("Heat-map y Recompensa Media ± std", y=0.98)
+
+    # **Ajustamos márgenes** para eliminar espacios muertos
+    fig.subplots_adjust(left=0.01, right=0.98, top=0.9, bottom=0.10)
+
+    os.makedirs(outdir, exist_ok=True)
+    base = os.path.join(outdir, "combined_heatmap_errorbars")
+    fig.savefig(base + ".png", dpi=300, bbox_inches="tight")
+    fig.savefig(base + ".pdf", bbox_inches="tight")
+    plt.close()
+
 
 # ------------------------------------------------------------------
 if __name__ == "__main__":
@@ -168,5 +255,5 @@ if __name__ == "__main__":
     figure_et(df, args.episodes, args.outdir)
     heatmap_percent(df, os.path.join(args.outdir, "annex"))
     errorbars_std(df, os.path.join(args.outdir, "annex"))
-
+    combined_heatmap_errorbars(df, os.path.join(args.outdir, "annex"))
     print("Figuras guardadas en:", os.path.abspath(args.outdir))

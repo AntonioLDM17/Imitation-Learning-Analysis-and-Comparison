@@ -133,7 +133,6 @@ def main() -> None:
         raise ValueError("Unsupported environment.")
 
     DEMO_DIR = os.path.join("..", "data", "demonstrations", str(args.demo_episodes))
-    # DEMO_DIR = os.path.join("..", "data", "demonstrations")
     DEMO_FILENAME = f"{args.env}_demonstrations_{args.demo_episodes}.npy"
     MODELS_DIR = f"models/gaifo_{args.env}_{args.demo_episodes}_2M"
     LOG_DIR = os.path.join("logs", f"gaifo_{args.env}_{args.demo_episodes}_2M")
@@ -186,11 +185,11 @@ def main() -> None:
     # ------------------------------------------------------------------
     # Step‑based training loop
     # ------------------------------------------------------------------
-    rollout_length = 2048  # steps per rollout (unchanged)
+    rollout_length = 2048  # steps per rollout
     total_steps_target = args.steps
     total_steps_so_far = 0
     num_iterations = math.ceil(total_steps_target / (rollout_length * n_envs))
-    gp_lambda = 5.165201675071828 # gradient‑penalty coefficient (unchanged)
+    gp_lambda = 5.165201675071828 # gradient‑penalty coefficient
 
     for itr in range(num_iterations):
         # --------------------------------------------------------------

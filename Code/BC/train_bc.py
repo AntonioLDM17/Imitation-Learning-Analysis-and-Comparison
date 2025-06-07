@@ -81,7 +81,7 @@ def main():
         demonstrations = demonstrations.tolist()
     transitions = rollout.flatten_trajectories(demonstrations)
 
-    # Compute total demonstration steps (D) (8000 for HalfCheetah)
+    # Compute total demonstration steps (D) 
     try:
         D = transitions.obs.shape[0] 
     except Exception:

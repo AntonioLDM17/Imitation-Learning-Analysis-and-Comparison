@@ -10,15 +10,15 @@ def read_table(path):
             subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl"])
             return pd.read_excel(path)
     elif ext == ".csv":
-        # acepta coma o punto como separador decimal
+        # Accept both comma and dot as decimal separators
         for dec in [".", ","]:
             try:
                 return pd.read_csv(path, decimal=dec)
             except UnicodeDecodeError:
                 continue
-        raise ValueError("No se pudo leer el CSV con codificación estándar.")
+        raise ValueError("Could not read CSV file with either decimal separator.")
     else:
-        raise ValueError("Extensión de archivo no soportada.")
+        raise ValueError("File format not supported. Use CSV or XLSX.")
 
 def add_metrics(df):
     df.columns = [c.strip().lower() for c in df.columns]
@@ -26,7 +26,7 @@ def add_metrics(df):
     # localizar filas con “EXPERT”
     mask_expert = df["algoritmo"].str.contains("expert", flags=re.I, na=False)
     if mask_expert.sum() == 0:
-        raise ValueError("No hay fila con 'EXPERT' en la columna algoritmo.")
+        raise ValueError("The input file must contain at least one row with 'expert' in the 'algoritmo' column.")
 
     expert_means = df.loc[mask_expert].set_index("env")["media"].to_dict()
 
@@ -46,17 +46,17 @@ def write_table(df, path):
         dec = "," if df["media"].astype(str).str.contains(",").any() else "."
         df.to_csv(path, index=False, decimal=dec)
     else:
-        raise ValueError("Extensión de salida no soportada.")
+        raise ValueError("Output format not supported. Use CSV or XLSX.")
 
 def main(infile, outfile):
     df = read_table(infile)
     df = add_metrics(df)
     write_table(df, outfile)
-    print("Archivo guardado con columnas 'cv' y '% expert' ➜", outfile)
+    print("File saved successfully to", outfile)
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
-    p.add_argument("--infile",  required=True, help="CSV o XLSX de entrada")
-    p.add_argument("--outfile", required=True, help="Ruta de salida (csv/xlsx)")
+    p.add_argument("--infile",  required=True, help="input file (csv/xlsx)")
+    p.add_argument("--outfile", required=True, help="output file (csv/xlsx)")
     args = p.parse_args()
     main(args.infile, args.outfile)

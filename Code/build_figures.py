@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# make_all_figures.py
-# ------------------------------------------------------------
 import os, argparse, math
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -12,10 +9,10 @@ COLORS     = {5:"#9467bd", 10:"#d62728", 20:"#2ca02c",
               50:"#ff7f0e", 100:"#1f77b4"}
 HEAT_CMAP  = "RdYlGn"
 FIGSIZE    = (12, 6)
-EXPERT_Y   = 6042.55          # recompensa media del experto
+EXPERT_Y   = 6042.55          # Mean reward of the expert in HalfCheetah-v4
 
-# ------------------------------------------------------------------
 def read_summary(path):
+    """ Reads a summary file and returns a DataFrame. """
     ext = os.path.splitext(path)[1].lower()
     df = pd.read_excel(path) if ext in {".xlsx", ".xls"} else pd.read_csv(path)
 
@@ -32,18 +29,20 @@ def read_summary(path):
                           .astype(float))
     return df
 
-# ------------------------------------------------------------------
 def _ensure_expert_visible(axes):
-    """Eleva el límite superior si es necesario para mostrar EXPERT_Y."""
+    """Ensures that the expert line is visible in all axes."""
     for ax in axes:
         if not ax.get_visible():
             continue
         ymin, ymax = ax.get_ylim()
-        if ymax < EXPERT_Y * 1.02:          # deja ~2 % de margen
+        if ymax < EXPERT_Y * 1.02:          # leave some space above
             ax.set_ylim(top=EXPERT_Y * 1.02)
 
-# ------------------------------------------------------------------
 def figure_et(df, episodes, outdir):
+    """ 
+    Generates Figure 1: Mean reward ± ET vs. number of trajectories.
+    The ET is calculated as std / sqrt(episodes).
+    """
     df = df.dropna(subset=["trayectorias"]).copy()
     df["et"] = df["std"] / math.sqrt(episodes)
 
@@ -91,8 +90,11 @@ def figure_et(df, episodes, outdir):
     fig.savefig(base + ".pdf", bbox_inches="tight")
     plt.close()
 
-# ------------------------------------------------------------------
 def heatmap_percent(df, outdir):
+    """
+    Generates a heatmap showing the mean reward as a percentage of the expert's reward.
+    The expert's reward is calculated from the rows containing "EXPERT" in the "algoritmo" column.
+    """
     mask_exp  = df["algoritmo"].str.contains("EXPERT")
     expert_mu = df.loc[mask_exp].set_index("env")["media"].to_dict()
 
@@ -114,8 +116,11 @@ def heatmap_percent(df, outdir):
                 dpi=300, bbox_inches="tight")
     plt.close()
 
-# ------------------------------------------------------------------
 def errorbars_std(df, outdir):
+    """
+    Generates a grid of error bars showing the mean reward ± std for each algorithm.
+    Excludes rows containing "EXPERT" in the "algoritmo" column.
+    """
     df = df[~df["algoritmo"].str.contains("EXPERT")].copy()
 
     fig, axes = plt.subplots(2, 3, figsize=FIGSIZE, sharey=True)
@@ -127,7 +132,7 @@ def errorbars_std(df, outdir):
                  .set_index("trayectorias")
                  .reindex(TRAJ_ORDER))
 
-        # línea del experto
+        # expert line
         label_exp = "Experto" if idx == 0 else "_nolegend_"
         ax.axhline(EXPERT_Y, ls="--", lw=1, color="gold", label=label_exp)
 
@@ -154,10 +159,10 @@ def errorbars_std(df, outdir):
     
 def combined_heatmap_errorbars(df, outdir):
     """
-    Dibuja en una sola figura, a la izquierda el heatmap de % experto
-    y a la derecha el grid de Error-bars ± std, uno al lado del otro.
+    Generates a combined figure with a heatmap and error bars ± std.
+    The heatmap shows the mean reward as a percentage of the expert's reward.
     """
-    # --- Datos para el heatmap ---
+    # data preparation for heatmap
     mask_exp  = df["algoritmo"].str.contains("EXPERT")
     expert_mu = df.loc[mask_exp].set_index("env")["media"].to_dict()
     df2 = df.loc[~mask_exp].copy()
@@ -167,33 +172,33 @@ def combined_heatmap_errorbars(df, outdir):
              .pivot(index="algoritmo", columns="trayectorias", values="% expert")
              .reindex(index=ALGS_ORDER, columns=TRAJ_ORDER))
 
-    # --- Datos para los errorbars ± std ---
+    # Data preparation for error bars
     df_err = df.loc[~df["algoritmo"].str.contains("EXPERT")].copy()
 
-    # --- Figura combinada ---
+    # Combine the heatmap and error bars in a single figure
     fig = plt.figure(figsize=FIGSIZE)
-    # reducimos la proporción de la columna del heatmap de 3 a 2
+    # Gridspec for layout
     gs = fig.add_gridspec(2, 4,
                           width_ratios=[2, 1, 1, 1],
                           wspace=0.25, hspace=0.3)
 
-    # Heatmap en la columna 0
+    # Heatmap in the first column
     ax0 = fig.add_subplot(gs[:, 0])
     sns.heatmap(pivot, annot=True, fmt=".0f", cmap=HEAT_CMAP,
                 vmin=40, vmax=110,
                 cbar_kws={
                   "label": "% experto",
-                  "shrink": 0.7,     # barra más pequeña
-                  "pad": 0.02       # menos espacio entre heatmap y cbar
+                  "shrink": 0.7,     # shrink the colorbar
+                  "pad": 0.02       # pad between colorbar and heatmap
                 },
                 ax=ax0)
     ax0.set_title("Heat-map – Recompensa media normalizada al experto")
     ax0.set_xlabel("Nº trayectorias")
     ax0.set_ylabel("")
-    # rotamos y centramos las etiquetas
+    # rotate x-ticks for better visibility
     ax0.set_xticklabels(TRAJ_ORDER, rotation=0, ha="center")
 
-    # Error-bars ± std en grid 2×3
+    # Error-bars ± std in grid 2×3
     axes = []
     for idx, alg in enumerate(ALGS_ORDER):
         row = idx // 3
@@ -220,7 +225,7 @@ def combined_heatmap_errorbars(df, outdir):
         if col == 1: ax.set_ylabel("Recompensa media")
         axes.append(ax)
 
-        # Fijamos una escala uniforme de 0 a ~6 163 (2 000 pasos), y ticks en 0,2000,4000,6000
+        # Set y-limits to ensure expert line is visible
         y_max = EXPERT_Y * 1.02
         for ax in axes:
             ax.set_ylim(0, y_max)
@@ -229,7 +234,7 @@ def combined_heatmap_errorbars(df, outdir):
 
     plt.suptitle("Heat-map y Recompensa Media ± std", y=0.98)
 
-    # **Ajustamos márgenes** para eliminar espacios muertos
+    # Addjust layout
     fig.subplots_adjust(left=0.01, right=0.98, top=0.9, bottom=0.10)
 
     os.makedirs(outdir, exist_ok=True)
@@ -239,16 +244,15 @@ def combined_heatmap_errorbars(df, outdir):
     plt.close()
 
 
-# ------------------------------------------------------------------
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(
-        description="Genera Figura 1, Heat-map y Error-bars.")
+        description="Generate Figura 1, Heat-map y Error-bars.")
     ap.add_argument("--summary", required=True,
-                    help="CSV/XLSX con columnas algoritmo, trayectorias, media, std, incluye EXPERT.")
+                    help="CSV/XLSX with columnns algoritmo, trayectorias, media, std, includes EXPERT.")
     ap.add_argument("--episodes", type=int, default=100,
-                    help="Episodios usados para el cálculo del ET.")
+                    help="Episodes used to calculate the ET.")
     ap.add_argument("--outdir", default="figures",
-                    help="Carpeta raíz donde guardar las figuras.")
+                    help="Output folder to save the figures.")
     args = ap.parse_args()
 
     df = read_summary(args.summary)
@@ -256,4 +260,4 @@ if __name__ == "__main__":
     heatmap_percent(df, os.path.join(args.outdir, "annex"))
     errorbars_std(df, os.path.join(args.outdir, "annex"))
     combined_heatmap_errorbars(df, os.path.join(args.outdir, "annex"))
-    print("Figuras guardadas en:", os.path.abspath(args.outdir))
+    print("Figures saved on:", os.path.abspath(args.outdir))

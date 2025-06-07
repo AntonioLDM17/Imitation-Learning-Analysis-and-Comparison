@@ -8,8 +8,8 @@ from sb3_contrib import TRPO
 from imitation.algorithms.bc import BC
 from BCO.bco import PolicyNetwork
 from SQIL.sqil_agent import SQILAgent
-import inspect   #  ← nuevo
-# ---------- suprimir mujoco_py -------------
+import inspect
+# Mock mujoco_py modules to avoid import errors
 dummy = types.ModuleType("mujoco_py")
 dummy.builder = types.ModuleType("mujoco_py.builder")
 dummy.locomotion = types.ModuleType("mujoco_py.locomotion")
@@ -30,7 +30,7 @@ ALG_TYPES = {
 ENV_MAP = {"halfcheetah": "HalfCheetah-v4",
            "cartpole":    "CartPole-v1"}
 
-# ---------- wrapper con dispositivo coherente y determinismo ------------
+# PolicyWrapper to adapt policies to the same interface
 class PolicyWrapper:
     def __init__(self, net, discrete):
         self.net, self.discrete = net, discrete
@@ -49,7 +49,7 @@ class PolicyWrapper:
                 out = self.net(obs_t)
 
             if isinstance(out, (tuple, list)):
-                out = out[0]      # p. ej. (mu, log_std)
+                out = out[0]      # (mu, log_std)
 
         act = (torch.argmax(out, dim=-1) if self.discrete else out).cpu().numpy()
         return act, None
@@ -57,7 +57,7 @@ class PolicyWrapper:
 
 
 def load_bc(model_path, env):
-    # reconstruye la clase de política como en evaluate_bc.py
+    # rebuild a dummy BC instance to get the policy class
     dummy_demo = [{"obs": env.observation_space.sample(),
                    "acts": env.action_space.sample(),
                    "dones": False,
@@ -68,7 +68,7 @@ def load_bc(model_path, env):
                 demonstrations=dummy_demo,
                 rng=np.random.default_rng(44))
     PolicyCls = bc_tmp.policy.__class__
-    # carga pesos
+    # load weights
     policy = PolicyCls(observation_space=env.observation_space,
                        action_space=env.action_space,
                        lr_schedule=lambda _: 1e-3)
@@ -76,6 +76,7 @@ def load_bc(model_path, env):
     policy.load_state_dict(ckpt if isinstance(ckpt, dict) else ckpt.state_dict())
     return PolicyWrapper(policy, isinstance(env.action_space, gym.spaces.Discrete))
 
+# Load BCO agent and its policy
 def load_bco(model_path, env):
     disc = isinstance(env.action_space, gym.spaces.Discrete)
     net  = PolicyNetwork(env.observation_space.shape[0],
@@ -85,6 +86,7 @@ def load_bco(model_path, env):
     net.eval()
     return PolicyWrapper(net, disc)
 
+# Load SQIL agent and its policy
 def load_sqil(model_dir, env):
     disc = isinstance(env.action_space, gym.spaces.Discrete)
     action_dim = env.action_space.n if disc else env.action_space.shape[0]
@@ -98,7 +100,7 @@ def load_sqil(model_dir, env):
     agent.actor.eval()
     return PolicyWrapper(agent.actor, disc)
 
-# 3. FUNCIÓN de evaluación (sustituye la actual):
+# Evaluate the policy in the given environment
 def eval_policy(policy, env_id, episodes):
     env = gym.make(env_id)
     env.reset(seed=44)
@@ -124,9 +126,9 @@ def main(root, episodes):
         env_id = ENV_MAP.get(env_key, env_key)
         alg_type = ALG_TYPES.get(alg)
         if not alg_type:
-            print("Algoritmo no soportado:", alg); continue
+            print("Algorithm not supported:", alg); continue
 
-        # localizar archivos
+        # localize the model file
         if alg_type.startswith("sb3"):
             model_file = glob.glob(os.path.join(sub.path, "*.zip"))[0]
             model = (TRPO if alg_type.endswith("trpo") else PPO).load(model_file, device="cpu")
@@ -152,34 +154,33 @@ def main(root, episodes):
         print(f"{alg.upper():5} | {traj:3d} traj | {mean:7.1f} ± {std:6.1f}")
 
     if not rows:
-        print("No se evaluó ningún modelo."); return
+        print("No model was evaluated."); return
 
-    # ---------- exportar ---------------------------------------------------------
+    # Export results to Excel or CSV
     df = pd.DataFrame(rows).sort_values(["algoritmo", "trayectorias"])
     excel_path = os.path.join(root, f"eval_results_{episodes}eps.xlsx")
 
     try:
-        # intenta escribir a Excel
+        # try to export to Excel
         df.to_excel(excel_path, index=False)
-        print("\nResultados exportados a:", excel_path)
+        print("\nResults exported to:", excel_path)
 
     except ModuleNotFoundError as err:
         if "openpyxl" in str(err):
-            print("openpyxl no encontrado. Instalándolo con pip...")
+            print("openpyxl not found. Installing with pip...")
             import subprocess, sys
             subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl"])
-            # reintenta
+            # retry
             df.to_excel(excel_path, index=False)
             print("\nResultados exportados a:", excel_path)
         else:
-            # si falla por otro motivo, salvamos a CSV
+            # If it's a different error, fallback to CSV
             csv_path = excel_path.replace(".xlsx", ".csv")
             df.to_csv(csv_path, index=False)
-            print("\nNo se pudo crear el Excel; resultados guardados en:", csv_path)
+            print("\nCould not export to Excel. Exported to CSV instead:", csv_path)
 
-    print("\nResultados exportados a:", excel_path)
+    print("\nResults exported to:", excel_path)
 
-# ------------------ CLI -------------------
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", default="modelos_finales",

@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 import os, glob, numpy as np, matplotlib.pyplot as plt
 from collections import OrderedDict
 from tensorboard.backend.event_processing import event_accumulator as ea
@@ -19,9 +18,9 @@ traj_order  = [100, 50, 20, 10, 5]
 colors      = {100:"#1f77b4", 50:"#ff7f0e", 20:"#2ca02c",
                10:"#d62728",  5:"#9467bd"}
 HORIZON     = 2_000_000
-EXPERT_REW  = 6_000            # línea de referencia
+EXPERT_REW  = 6_000            # expert reward for HalfCheetah
 
-# ---------------- lectura de TensorBoard ----------------
+# TensorBoard event files are stored in a nested directory structure.
 def events(run):
     return glob.glob(os.path.join(run, "**", "events.*"), recursive=True)
 
@@ -56,7 +55,7 @@ def best(run, tag):
 def load(run, algo, tag):
     return merge_bco(run, tag) if algo == "bco" else best(run, tag)
 
-# ---------------- suavizado EMA ----------------
+# Smoothing function for EMA
 def smooth_ema(values, beta):
     smoothed = np.empty_like(values, dtype=float)
     smoothed[0] = values[0]
@@ -64,19 +63,20 @@ def smooth_ema(values, beta):
         smoothed[t] = beta * smoothed[t-1] + (1.0 - beta) * values[t]
     return smoothed
 
-# ---------------- generación de mosaico ----------------
+
 def build_mosaic():
+    """ Builds a mosaic plot comparing different algorithms on HalfCheetah with EMA smoothing."""
     fig, axs = plt.subplots(2, 3, figsize=(16, 6), sharex=True, sharey=True)
     axs = axs.ravel()
 
     for idx, algo in enumerate(algorithms):
         ax, tag = axs[idx], TAGS[algo]
 
-        # línea del experto
+        # expert line
         ax.axhline(EXPERT_REW, color="gold", ls="--", lw=1.0,
                    label="Experto" if idx == 0 else "_nolegend_")
 
-        # parámetros dependientes del algoritmo
+        # parameters of smoothing
         beta      = 0.9 if algo == "sqil" else 0.6
         alpha_raw = 0.2 if algo == "sqil" else 0.4
         lw_raw    = 0.4 if algo == "sqil" else 0.5
@@ -87,7 +87,7 @@ def build_mosaic():
             if steps is None:
                 continue
 
-            steps = steps * (HORIZON / steps[-1])      # escala al mismo horizonte
+            steps = steps * (HORIZON / steps[-1])      # Normalize to 2M steps
             rew   = smooth_ema(rew_raw, beta)
 
             ax.plot(steps, rew_raw, color=colors[n], alpha=alpha_raw, lw=lw_raw)
@@ -96,11 +96,11 @@ def build_mosaic():
         ax.set_title(algo.upper(), fontsize=9)
         ax.tick_params(labelsize=7)
 
-    # etiquetas globales
+    # Global settings
     fig.text(0.5, 0, "Steps (0 – 2 000 000)", ha="center")
     fig.text(-0.01, 0.5, "Mean episode reward", va="center", rotation="vertical")
 
-    # leyenda única deduplicada
+    # Global legend
     handles, labels = [], []
     for ax in axs:
         h, l = ax.get_legend_handles_labels()
@@ -124,6 +124,5 @@ def build_mosaic():
     fig.savefig(fname, dpi=300, bbox_inches="tight")
     print("Guardado:", fname)
 
-# ---------------- ejecución ----------------
 if __name__ == "__main__":
     build_mosaic()

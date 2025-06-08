@@ -101,10 +101,10 @@ def main():
     learner = TRPO(        
         "MlpPolicy",
         env,
-        batch_size=128, # Original 64
-        learning_rate=1e-3, # Original 5e-4
-        gamma=0.95,
-        seed=SEED,
+        batch_size=128, # batch size for TRPO
+        learning_rate=1e-3, # learning rate for TRPO
+        gamma=0.95, # discount factor
+        seed=SEED, 
         verbose=1,
         tensorboard_log=LOG_DIR,
     )
@@ -129,6 +129,7 @@ def main():
         discount_factor=0.99,
         normalize_input_layer=RunningNorm,
     )
+    
     # Instantiate AIRL trainer 
     airl_trainer = AIRL(
         demonstrations=demonstrations,

@@ -47,8 +47,8 @@ def main():
         model,
         env,
         n_eval_episodes=args.n_episodes,
-        deterministic=True,
-        return_episode_rewards=False
+        deterministic=True, # Use deterministic actions for evaluation
+        return_episode_rewards=False 
     )
 
     print(f"Evaluation over {args.n_episodes} episodes:")

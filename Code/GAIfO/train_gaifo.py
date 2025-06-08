@@ -14,7 +14,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 # -----------------------------------------------------------------------------
-# Work‑around for `mujoco_py` import issues (unchanged)
+# Work‑around for `mujoco_py` import issues
 # -----------------------------------------------------------------------------
 dummy = types.ModuleType("mujoco_py")
 dummy.builder = types.ModuleType("mujoco_py.builder")
@@ -27,7 +27,7 @@ sys.modules["mujoco_py.locomotion"] = dummy.locomotion
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # -----------------------------------------------------------------------------
-# Callback skeleton (unchanged)
+# Callback skeleton
 # -----------------------------------------------------------------------------
 class DummyCallback(BaseCallback):
     def __init__(self, verbose: int = 0):
@@ -46,6 +46,16 @@ class DummyCallback(BaseCallback):
 # Discriminator
 # -----------------------------------------------------------------------------
 class GAIfODiscriminator(nn.Module):
+    """ 
+    Discriminator for GAIfO, which takes two states (current and next) as input
+    and outputs a probability that the transition is from the expert policy.
+    Args:
+        flat_obs_dim (int): Dimension of the flattened observation space.
+        hidden_dim (int): Dimension of the hidden layers in the network.
+    Returns:
+        torch.Tensor: Output probability in the range (0, 1) indicating the likelihood
+                      that the transition is from the expert policy.
+    """
     def __init__(self, flat_obs_dim: int, hidden_dim: int = 256):
         super().__init__()
         self.net = nn.Sequential(
@@ -73,7 +83,18 @@ def compute_gradient_penalty(
     s_policy_next: torch.Tensor,
     device: torch.device,
 ) -> torch.Tensor:
-    """WGAN‑GP style gradient penalty."""
+    """
+    WGAN‑GP style gradient penalty.
+    Args:
+        discriminator (nn.Module): The discriminator
+        s_expert (torch.Tensor): Expert states (current).
+        s_policy (torch.Tensor): Policy states (current).
+        s_expert_next (torch.Tensor): Expert states (next).
+        s_policy_next (torch.Tensor): Policy states (next).
+        device (torch.device): Device to perform computations on.
+    Returns:
+        torch.Tensor: Gradient penalty loss.
+    """
     batch_size = s_expert.size(0)
     alpha = torch.rand(batch_size, 1, device=device)
     s_hat = alpha * s_expert + (1 - alpha) * s_policy
@@ -146,35 +167,35 @@ def main() -> None:
     SEED = args.seed
 
     # ------------------------------------------------------------------
-    # Expert demonstration loading (unchanged)
+    # Expert demonstration loading
     # ------------------------------------------------------------------
     demo_path = os.path.join(DEMO_DIR, DEMO_FILENAME)
     demonstrations = np.load(demo_path, allow_pickle=True)
     demonstrations = demonstrations.tolist() if isinstance(demonstrations, np.ndarray) else demonstrations
-
+    # Flatten demonstrations
     if demonstrations and hasattr(demonstrations[0], "obs"):
         demo_traj = np.concatenate([np.array(traj.obs, dtype=np.float32) for traj in demonstrations])
     else:
         demo_traj = np.array([np.array(x, dtype=np.float32) for x in demonstrations])
-
+    # Create transitions from demonstrations
     expert_transitions = np.array([(demo_traj[i], demo_traj[i + 1]) for i in range(len(demo_traj) - 1)])
     expert_s = torch.tensor(np.stack(expert_transitions[:, 0]), dtype=torch.float32).to(device)
     expert_s_next = torch.tensor(np.stack(expert_transitions[:, 1]), dtype=torch.float32).to(device)
 
     flat_obs_dim = env.observation_space.shape[0]
-
+    # Instantiate the learner
     learner = TRPO("MlpPolicy", env, seed=SEED, verbose=1, tensorboard_log=LOG_DIR)
     learner.set_logger(configure(LOG_DIR, ["stdout", "tensorboard"]))
-
+    # Observation space must be flattened for GAIfO
     obs = env.reset()[0]
     learner._last_obs = obs[None, :] if obs.ndim == 1 else obs
     learner.ep_info_buffer, learner.ep_success_buffer = [], []
-
+    # Instantiate the discriminator
     discriminator = GAIfODiscriminator(flat_obs_dim).to(device)
     disc_lr =5.4868671601784924e-05
     disc_optimizer = optim.Adam(discriminator.parameters(), lr=disc_lr, betas=(0.9, 0.999))  # Adjusted learning rate
     bce_loss = nn.BCELoss()
-
+    # Evaluate the policy before training
     pre_reward_mean = np.mean(evaluate_policy(learner, env, n_eval_episodes=10)[0])
     print(f"Mean reward before training: {pre_reward_mean:.2f}")
     writer.add_scalar("Reward/PreTrain", pre_reward_mean, 0)

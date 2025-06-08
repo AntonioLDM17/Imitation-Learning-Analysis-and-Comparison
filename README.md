@@ -68,7 +68,7 @@ python Code/generate_demostrations.py --env halfcheetah --policy sac --timesteps
 
 # 3. Entrenar BC con esas trayectorias
 python Code/BC/train_bc.py --env halfcheetah --demo_episodes 50 --timesteps 2000000
-
+# También deberías mover el modelo experto a la carpeta de modelos_finales antes de evaluar
 # 4. Evaluar todos los modelos
 python Code/evaluate_every_model.py --root modelos_finales --episodes 100
 

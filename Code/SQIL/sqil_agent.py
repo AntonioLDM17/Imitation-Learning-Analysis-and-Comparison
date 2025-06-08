@@ -10,7 +10,31 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # --- Actor Network (Gaussian Policy) ---
 class Actor(nn.Module):
+    """ 
+    Actor network for the SQIL agent, implementing a Gaussian policy.
+    Args:
+        state_dim (int): Dimension of the state space.
+        action_dim (int): Dimension of the action space.
+        hidden_dim (int): Number of hidden units in the network.
+        log_std_min (float): Minimum value for the log standard deviation.
+        log_std_max (float): Maximum value for the log standard deviation.
+    Returns:
+        mean (torch.Tensor): Mean of the action distribution.
+        log_std (torch.Tensor): Log standard deviation of the action distribution.
+        action (torch.Tensor): Sampled action from the policy.
+        log_prob (torch.Tensor): Log probability of the sampled action.
+        tanh_mean (torch.Tensor): Tanh activation of the mean for bounded actions.
+    """
     def __init__(self, state_dim, action_dim, hidden_dim=256, log_std_min=-20, log_std_max=2):
+        """
+        Initializes the Actor network.
+        Args:
+            state_dim (int): Dimension of the state space.
+            action_dim (int): Dimension of the action space.
+            hidden_dim (int): Number of hidden units in the network.
+            log_std_min (float): Minimum value for the log standard deviation.
+            log_std_max (float): Maximum value for the log standard deviation.
+        """
         super(Actor, self).__init__()
         self.log_std_min = log_std_min
         self.log_std_max = log_std_max
@@ -24,6 +48,14 @@ class Actor(nn.Module):
         self.log_std_linear = nn.Linear(hidden_dim, action_dim)
         
     def forward(self, state):
+        """
+        Forward pass through the network to compute mean and log standard deviation.
+        Args:
+            state (torch.Tensor): Input state tensor.
+        Returns:
+            mean (torch.Tensor): Mean of the action distribution.
+            log_std (torch.Tensor): Log standard deviation of the action distribution.
+        """
         x = self.net(state)
         mean = self.mean_linear(x)
         log_std = self.log_std_linear(x)
@@ -31,6 +63,15 @@ class Actor(nn.Module):
         return mean, log_std
     
     def sample(self, state):
+        """
+        Samples an action from the policy given a state.
+        Args:
+            state (torch.Tensor): Input state tensor.
+        Returns:
+            action (torch.Tensor): Sampled action from the policy.
+            log_prob (torch.Tensor): Log probability of the sampled action.
+            tanh_mean (torch.Tensor): Tanh activation of the mean for bounded actions.
+        """
         mean, log_std = self.forward(state)
         std = log_std.exp()
         normal = torch.distributions.Normal(mean, std)
@@ -43,6 +84,16 @@ class Actor(nn.Module):
 
 # --- Critic Network (Double Q Network) ---
 class Critic(nn.Module):
+    """
+    Critic network for the SQIL agent, implementing a Double Q-learning approach.
+    Args:
+        state_dim (int): Dimension of the state space.
+        action_dim (int): Dimension of the action space.
+        hidden_dim (int): Number of hidden units in the network.
+    Returns:
+        q1 (torch.Tensor): Q-value from the first critic network.
+        q2 (torch.Tensor): Q-value from the second critic network.
+    """
     def __init__(self, state_dim, action_dim, hidden_dim=256):
         super(Critic, self).__init__()
         # First Q network
@@ -70,6 +121,11 @@ class Critic(nn.Module):
 
 # --- Replay Buffer ---
 class ReplayBuffer:
+    """
+    Simple replay buffer to store transitions for training the SQIL agent.
+    Args:
+        capacity (int): Maximum number of transitions to store in the buffer.
+    """
     def __init__(self, capacity):
         self.capacity = capacity
         self.buffer = []
@@ -89,6 +145,10 @@ class ReplayBuffer:
 
 # --- SQIL Agent based on SAC ---
 class SQILAgent:
+    """    
+    Soft Q-learning with Imitation Learning (SQIL) agent.
+    Combines SAC with demonstration and agent transition buffers.
+    """
     def __init__(self, state_dim, action_dim, action_range=1.0, 
                  actor_hidden=256, critic_hidden=256, 
                  actor_lr=3e-4, critic_lr=3e-4, alpha_lr=1e-4,

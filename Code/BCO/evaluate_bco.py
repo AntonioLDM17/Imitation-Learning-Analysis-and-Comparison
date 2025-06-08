@@ -16,6 +16,16 @@ sys.modules["mujoco_py.locomotion"] = dummy.locomotion
 
 
 def evaluate_policy(policy_net, env, discrete=True, n_episodes=10):
+    """ 
+    Evaluates the policy over a number of episodes.
+    Args:
+        policy_net (PolicyNetwork): The trained policy network.
+        env (gym.Env): The environment to evaluate the policy in.
+        discrete (bool): Whether the action space is discrete or continuous.
+        n_episodes (int): Number of episodes to evaluate.
+    Returns:
+        tuple: Mean and standard deviation of rewards over the episodes.
+    """
     rewards = []
     for episode in range(n_episodes):
         obs, _ = env.reset()

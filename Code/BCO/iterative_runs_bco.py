@@ -6,7 +6,7 @@ dict_demo_episodes_x_policy_epochs = {
     20: 71,
     50: 31,
     100: 17
-}
+} # Define the dictionary for demonstration episodes and corresponding policy epochs
 # Code to run the script iteratively for different demo episodes
 for demo_episodes, policy_epochs in dict_demo_episodes_x_policy_epochs.items():
     print(f"Running training with {demo_episodes} demonstration episodes and {policy_epochs} policy epochs...")

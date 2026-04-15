@@ -1,190 +1,195 @@
-# Imitation Learning Under One Protocol: A Comparative Benchmark Across 6 Algorithms
+# Imitation Learning Benchmark for Continuous & Discrete Control
 
-A reproducible, end-to-end study of **imitation learning (IL)** in both discrete and continuous control. This project benchmarks **BC, BCO, GAIL, GAIfO, AIRL, and SQIL** under the same data budget and evaluation pipeline to surface practical trade-offs that matter in real RL workflows.
+<p align="left">
+  Comparative study of <strong>6 imitation learning algorithms</strong> under a unified protocol on <code>CartPole-v1</code> and <code>HalfCheetah-v4</code>.<br/>
+  Designed as a reproducible research-engineering project: from expert training and demonstration generation to automated evaluation and publication-ready figures.
+</p>
+
+<p align="left">
+  <img src="https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white" alt="Python"/>
+  <img src="https://img.shields.io/badge/PyTorch-Deep%20Learning-EE4C2C?logo=pytorch&logoColor=white" alt="PyTorch"/>
+  <img src="https://img.shields.io/badge/Gymnasium-CartPole%20%26%20HalfCheetah-009688" alt="Gymnasium"/>
+  <img src="https://img.shields.io/badge/Imitation%20Ecosystem-SB3%20%2B%20imitation-5C6BC0" alt="imitation ecosystem"/>
+  <img src="https://img.shields.io/badge/Focus-Imitation%20Learning%20Benchmark-6A1B9A" alt="focus"/>
+  <img src="https://img.shields.io/badge/Type-Portfolio%20Research%20Project-111111" alt="type"/>
+</p>
 
 ---
 
-## At a Glance
+## At a glance
 
-| Area | Summary |
+| Area | Details |
 |---|---|
-| **Project type** | Comparative experimental study in imitation learning |
-| **Algorithms** | **6 total**: BC, BCO, GAIL, GAIfO, AIRL, SQIL |
-| **Environments** | `CartPole-v1` and `HalfCheetah-v4` |
-| **Main engineering contribution** | From-scratch continuous-control implementations of **BCO**, **GAIfO**, and **SQIL** |
-| **Main experimental protocol** | Expert → demonstrations (`5/10/20/50/100`) → IL training (mainly **2M steps**) → standardized evaluation → figure generation |
-| **Headline findings** | BC peaks at **91.2%** expert with 100 demos; AIRL shows strongest cross-budget stability (~80% expert); many methods dip around **20 demonstrations** |
-| **Core stack** | Python, Gymnasium, PyTorch, Stable-Baselines3, sb3-contrib, `imitation`, pandas, matplotlib, seaborn |
+| **Project type** | Comparative imitation learning benchmark under a common training/evaluation protocol |
+| **Algorithms (6)** | **BC, BCO, GAIL, GAIfO, AIRL, SQIL** |
+| **Environments** | **CartPole-v1** (discrete) and **HalfCheetah-v4** (continuous) |
+| **Key engineering contribution** | **From-scratch continuous-control implementations of BCO, GAIfO, SQIL** |
+| **Main comparison setup** | Demonstration budgets: **5, 10, 20, 50, 100** trajectories; main training budget: **2M steps** |
+| **Headline findings** | BC peaks at **91.2%** of expert (100 demos); AIRL is most stable at ~**80%** across budgets |
+| **Core stack** | Python, Gymnasium, PyTorch, Stable-Baselines3, sb3-contrib, imitation, pandas, matplotlib, seaborn |
 
 ---
 
-## Environment Preview
+## Environment preview
 
 | CartPole-v1 | HalfCheetah-v4 |
 |---|---|
-| ![CartPole environment preview](https://gymnasium.farama.org/_images/cart_pole.gif) | ![HalfCheetah environment preview](https://gymnasium.farama.org/main/_images/half_cheetah.gif) |
-
-*Environment visuals are sourced from the official Gymnasium documentation pages for the corresponding environments.*
-
-## Why This Project Matters
-
-In reinforcement learning, writing reward functions that are both correct and robust is often the hardest part of the problem. Imitation learning is a practical alternative: instead of handcrafting rewards, the agent learns from expert behavior.
-
-The challenge is fragmentation: different IL families (supervised, inverse-dynamics, adversarial, offline-RL flavored) are often evaluated with inconsistent settings. This repository addresses that by comparing multiple IL approaches under a **shared protocol**, making results easier to interpret and reproduce.
+| ![CartPole GIF](https://gymnasium.farama.org/_images/cart_pole.gif) | ![HalfCheetah GIF](https://gymnasium.farama.org/_images/half_cheetah.gif) |
 
 ---
 
-## Core Contributions
+## Why this project matters
 
-- **Unified benchmark across 6 imitation algorithms** on the same environments and trajectory budgets.
-- **Custom continuous-control implementations** for:
-  - **BCO** (including custom inverse-dynamics modeling),
-  - **GAIfO** (state-only adversarial setup),
-  - **SQIL** (custom SAC-style actor/critic agent).
-- **Integrated research pipeline** from expert training to automated model evaluation and plotting.
-- **Reproducible experiment structure** with configuration files (`Code/config/*.yaml`), standardized folder conventions, and scripts for aggregate analysis.
+In reinforcement learning, **reward engineering is often the bottleneck**: designing a reward that is correct, robust, and not exploitable can be harder than training the policy itself.
+
+Imitation learning is a practical alternative, but the field is fragmented across families (supervised cloning, inverse-dynamics methods, adversarial methods, and offline-RL-style approaches). This repository addresses that gap by comparing representative methods **under one consistent experimental protocol**, making trade-offs easier to analyze and reproduce.
+
+---
+
+## Core contributions
+
+- **Unified benchmark across 6 IL algorithms** with shared demonstration budgets and evaluation criteria.
+- **From-scratch implementations for continuous control**:
+  - **BCO** with custom inverse-dynamics learning,
+  - **GAIfO** with state-only adversarial training,
+  - **SQIL** with a custom SAC-style agent.
+- **End-to-end experimental pipeline**:
+  expert policy training → demonstration generation → imitation training → model-wide evaluation → figure generation.
+- **Reproducibility-oriented structure** with dedicated config files, centralized data/model folders, and analysis scripts.
 
 > [!NOTE]
-> BC, GAIL, and AIRL are trained with the established `imitation` ecosystem and SB3-based components, while BCO, GAIfO, and SQIL include substantial custom implementations in this repo.
+> BC, GAIL, and AIRL rely on established components from the `imitation` ecosystem and SB3/sb3-contrib. BCO, GAIfO, and SQIL include custom algorithmic implementations in this repo.
 
 ---
 
-## Repository Architecture
+## Repository architecture
 
 ```text
 .
 ├── README.md
 └── Code/
-    ├── AIRL/                  # AIRL training, evaluation, iterative runs
-    ├── BC/                    # Behavioral Cloning training/evaluation
-    ├── BCO/                   # Custom BCO + inverse dynamics implementation
-    ├── GAIL/                  # GAIL training/evaluation
-    ├── GAIfO/                 # Custom state-only GAIfO implementation
-    ├── SQIL/                  # Custom SAC-style SQIL agent + training/evaluation
-    ├── config/                # YAML configs for experiment parameters
+    ├── AIRL/                      # AIRL training/evaluation scripts + saved runs
+    ├── BC/                        # Behavioral Cloning scripts + saved runs
+    ├── BCO/                       # Custom BCO implementation (inverse dynamics + policy)
+    ├── GAIL/                      # GAIL training/evaluation scripts
+    ├── GAIfO/                     # Custom GAIfO implementation (state-only adversarial)
+    ├── SQIL/                      # Custom SQIL implementation (SAC-style actor/critic)
+    ├── config/                    # YAML experiment parameter files
     ├── data/
-    │   ├── experts/           # Saved expert policies
-    │   └── demonstrations/    # Demonstration sets by trajectory count
-    ├── figures/               # Generated plots (sample efficiency, heatmaps, mosaics)
-    ├── train_expert.py        # Expert training (PPO/TRPO/SAC)
-    ├── generate_demonstrations.py
-    ├── evaluate_every_model.py
-    └── build_figures.py
+    │   ├── experts/               # Trained expert policies
+    │   └── demonstrations/        # Demonstrations grouped by trajectory count
+    ├── figures/                   # Generated visual outputs (sample-efficiency, heatmaps, etc.)
+    ├── train_expert.py            # Expert policy training (PPO/TRPO/SAC)
+    ├── generate_demonstrations.py # Demonstration rollout/serialization
+    ├── evaluate_every_model.py    # Cross-algorithm evaluation + aggregated export
+    └── build_figures.py           # Figure generation (heatmaps + error-bar summaries)
 ```
 
 ---
 
-## Experimental Pipeline
+## Experimental pipeline
 
 ```mermaid
 flowchart LR
-    A[Train Expert Policy\nPPO / TRPO / SAC] --> B[Generate Demonstrations\nN = 5, 10, 20, 50, 100]
-    B --> C[Train IL Algorithms\nBC, BCO, GAIL, GAIfO, AIRL, SQIL]
-    C --> D[Evaluate All Models\nAggregate mean/std rewards]
-    D --> E[Build Figures\nError bars + heatmaps + summaries]
+    A[Train expert policy\nPPO / TRPO / SAC] --> B[Generate demonstrations\nN = 5, 10, 20, 50, 100]
+    B --> C[Train imitation models\nBC, BCO, GAIL, GAIfO, AIRL, SQIL]
+    C --> D[Evaluate all model folders\nAggregate mean/std rewards]
+    D --> E[Build visual summaries\nSample-efficiency + heatmaps + error bars]
 ```
 
-### Stage-by-stage
+### Stage breakdown
 
-1. **Expert training** (`train_expert.py`)  
-   Trains experts on Gymnasium environments using **PPO/TRPO/SAC** and stores models in `Code/data/experts`.
-
-2. **Demonstration generation** (`generate_demonstrations.py`)  
-   Rolls out expert policies and saves trajectory files in `Code/data/demonstrations/<N>`.
-
-3. **Imitation training** (`Code/<ALGO>/train_*.py`)  
-   Trains each IL algorithm with matched demonstration counts (`5, 10, 20, 50, 100`) under the shared experiment setup.
-
-4. **Standardized evaluation** (`evaluate_every_model.py`)  
-   Scans model directories, loads algorithm-specific policies, evaluates each model over fixed episodes, and exports aggregated results.
-
-5. **Visualization** (`build_figures.py`)  
-   Generates visual summaries such as **error-bar comparisons** and **expert-normalized heatmaps**.
+1. **Train experts** (`Code/train_expert.py`) with PPO/TRPO/SAC depending on environment/action space.
+2. **Generate demonstrations** (`Code/generate_demonstrations.py`) from trained experts for selected trajectory budgets.
+3. **Train imitation policies** in algorithm-specific modules (`Code/<ALGO>/train_*.py`).
+4. **Evaluate every model folder automatically** (`Code/evaluate_every_model.py`) and export aggregated results.
+5. **Generate figures** (`Code/build_figures.py`) including heatmaps and error-bar plots from summary files.
 
 ---
 
-## Algorithms Covered
+## Algorithms covered
 
-| Algorithm | Family | Requires expert actions? | Implemented from scratch here? | Notes |
+| Algorithm | Family | Action access required? | From scratch in this repo? | Notes |
 |---|---|---:|---:|---|
-| **BC** | Supervised imitation | ✅ Yes | ❌ No | Uses `imitation.algorithms.bc` training flow |
-| **BCO** | Inverse-dynamics + BC | ❌ No (observations only) | ✅ Yes | Includes custom inverse dynamics and policy training |
-| **GAIL** | Adversarial imitation | ✅ Yes | ❌ No | Uses `imitation` + TRPO generator |
-| **GAIfO** | Adversarial (state-only) | ❌ No (state transitions) | ✅ Yes | Custom discriminator and state-only adversarial loop |
-| **AIRL** | Adversarial IRL-style | ✅ Yes | ❌ No | Uses `imitation` AIRL components with SB3-based learner |
-| **SQIL** | Offline-RL style imitation | ✅ Yes | ✅ Yes | Custom SAC-style actor/critic, dual replay buffers |
+| **BC** | Supervised imitation | ✅ Yes | ❌ No | Uses `imitation.algorithms.bc` pipeline |
+| **BCO** | Observation-only + inverse dynamics | ❌ No | ✅ Yes | Custom inverse-dynamics model + policy training loop |
+| **GAIL** | Adversarial imitation | ✅ Yes | ❌ No | Uses `imitation` adversarial setup with SB3/TRPO learner |
+| **GAIfO** | Adversarial (state-only) | ❌ No | ✅ Yes | Custom state-transition discriminator and training loop |
+| **AIRL** | Adversarial IRL-style | ✅ Yes | ❌ No | Uses `imitation` AIRL components with TRPO generator |
+| **SQIL** | Offline-RL-style imitation | ✅ Yes | ✅ Yes | Custom SAC-style actor/critic + demo/agent replay handling |
 
 ---
 
-## Key Results
+## Key results
 
-### Headline findings
-
-| Finding | Interpretation |
+| Finding | What it means |
 |---|---|
-| **BC reaches 91.2% of expert performance with 100 demonstrations.** | With enough demonstrations, direct behavior matching can be highly competitive. |
-| **AIRL is the most stable (~80% expert) across trajectory budgets.** | AIRL shows strong robustness when demonstration count varies. |
-| **Critical zone around 20 trajectories.** | Multiple methods show a noticeable degradation near this data regime. |
-| **Observation-only methods are more sensitive to data budget/quality.** | Inferring or matching behavior without direct expert actions can increase variance. |
+| **BC reaches 91.2% of expert performance with 100 demonstrations.** | Pure behavior matching can be very effective in higher-demo regimes. |
+| **AIRL is the most stable method (~80% expert) across trajectory budgets.** | AIRL offers strong robustness when demonstration count changes. |
+| **Critical degradation zone around 20 trajectories.** | Several methods become less reliable in this intermediate data regime. |
+| **Observation-only methods are more sensitive.** | Inferring behavior without action labels tends to increase difficulty/variance. |
 
-This makes the benchmark useful beyond single “best score” reporting: it highlights **data-regime behavior**, **stability**, and **method sensitivity** under a shared protocol.
+This benchmark emphasizes **stability vs. peak performance**, not only single best scores.
 
-### Example generated output
+### Generated outputs in this repo
 
-![Sample-efficiency figure generated by the pipeline](Code/figures/figure1_sample_efficiency.png)
+<p align="left">
+  <img src="Code/figures/figure1_sample_efficiency.png" alt="Sample efficiency figure" width="48%"/>
+  <img src="Code/figures/annex/combined_heatmap_errorbars.png" alt="Combined heatmap and error bars" width="48%"/>
+</p>
 
 ---
 
-## Quickstart (Reproducible Run Flow)
+## Reproducibility — quickstart
 
 ```bash
-# 0) Install dependencies (from repository root)
+# 1) Install dependencies
 pip install -r Code/requirements.txt
 
-# 1) Move to the code workspace (paths are set up relative to Code/)
+# 2) Move into the code workspace
 cd Code
 
-# 2) Train an expert (example: HalfCheetah + SAC, 2M steps)
+# 3) Train an expert (example: HalfCheetah + SAC + 2M steps)
 python train_expert.py --env halfcheetah --policy sac --timesteps 2000000 --seed 44
 
-# 3) Generate demonstrations (example: 100 trajectories)
+# 4) Generate demonstrations (example: 100 trajectories)
 python generate_demonstrations.py --env halfcheetah --policy sac --timesteps 2000000 --num_episodes 100 --seed 44
 
-# 4) Train one imitation model (example: BC)
+# 5) Train one imitation method (example: BC)
 python BC/train_bc.py --env halfcheetah --timesteps 2000000 --seed 44 --demo_episodes 100
 
-# 5) Evaluate all models in a root directory of trained runs
+# 6) Evaluate all trained models inside a root folder
 python evaluate_every_model.py --root modelos_finales --episodes 100
 
-# 6) Build comparison figures from aggregated evaluation output
-python build_figures.py --summary modelos_finales/eval_results_100eps.xlsx
+# 7) Build figures from the aggregated summary
+python build_figures.py --summary modelos_finales/eval_results_100eps.xlsx --episodes 100 --outdir figures
 ```
 
 ---
 
-## Technical Highlights
+## Technical highlights
 
-- **Algorithm-specific modularization** (`Code/AIRL`, `Code/BC`, `Code/BCO`, `Code/GAIL`, `Code/GAIfO`, `Code/SQIL`) keeps training/evaluation workflows isolated and maintainable.
-- **Custom learning systems implemented in PyTorch** for BCO inverse dynamics, GAIfO discriminator training, and SQIL SAC-style policy optimization.
-- **Evaluation automation** via `evaluate_every_model.py` to standardize reward reporting across heterogeneous policy formats.
-- **Figure-generation pipeline** (`build_figures.py`) for reproducible visual analysis (error bars, heatmaps, combined summaries).
-- **Config-driven experimentation** through YAML parameter files under `Code/config`.
+- **Custom algorithm engineering** for BCO, GAIfO, and SQIL in continuous control.
+- **Model-specific modular folders** for cleaner experimentation and maintenance.
+- **Automated cross-model evaluation** via folder scanning + unified result export.
+- **Reproducible analytics pipeline** for sample-efficiency curves, heatmaps, and error bars.
+- **Config-driven experimentation** using YAML files in `Code/config`.
 
 ---
 
-## Project Takeaways
+## Project takeaways
 
 This project demonstrates:
 
-- Practical depth in **reinforcement learning and imitation learning**.
-- Ability to move between **research framing** and **working implementations**.
-- Comfort implementing both **library-based baselines** and **from-scratch algorithmic components**.
-- Strong focus on **experimental protocol, reproducibility, and analysis tooling**.
+- Strong practical grounding in **reinforcement learning and imitation learning**.
+- Ability to combine **research comparison design** with **real implementations**.
+- Experience implementing both **library-based baselines** and **custom algorithm components**.
+- Focus on **experimental rigor, reproducibility, and analysis tooling**.
 
 ---
 
-## Future Work
+## Future work
 
-- Extend the benchmark to additional continuous-control tasks and broader seed sweeps.
-- Add statistically stronger confidence reporting (e.g., repeated-run confidence intervals per method and budget).
-- Unify output schemas further so model artifacts can be compared with less manual directory setup.
+- Extend comparisons to additional continuous-control tasks.
+- Increase seed coverage for tighter uncertainty estimates.
+- Further standardize output schemas to simplify large-scale benchmarking.

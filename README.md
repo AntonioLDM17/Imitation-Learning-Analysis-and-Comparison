@@ -34,7 +34,7 @@
 
 | CartPole-v1 | HalfCheetah-v4 |
 |---|---|
-| ![CartPole GIF](https://gymnasium.farama.org/_images/cart_pole.gif) | ![HalfCheetah GIF](https://gymnasium.farama.org/_images/half_cheetah.gif) |
+| ![CartPole GIF](https://gymnasium.farama.org/_images/cart_pole.gif) | ![HalfCheetah GIF](https://gymnasium.farama.org/v0.27.0/_images/half_cheetah.gif) |
 
 ---
 
